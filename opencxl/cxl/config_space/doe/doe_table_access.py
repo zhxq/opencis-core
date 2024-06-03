@@ -100,7 +100,6 @@ class DoeTableAccessProtocol(DoeMailboxProtocolBase):
         cdat_header.length = len(cdat_header)
         self._entries.append(cdat_header)
         for entry in entries:
-            logger.debug(f"[DOE] Adding an entry, type: {type(entry)}")
             cdat_header.length += entry.length
             self._entries.append(entry)
 
