@@ -12,8 +12,8 @@ test:
 	rm -f mem*.bin
 
 lint:
-	poetry run pylint opencxl
-	poetry run pylint tests
+	poetry run pylint --rcfile=.pylintrc opencxl
+	poetry run pylint --rcfile=.pylintrc tests
 
 clean:
 	rm -rf *.bin logs *.log *.pcap
