@@ -20,6 +20,7 @@ from opencxl.cxl.transport.transaction import (
     BaseSidebandPacket,
     CxlIoBasePacket,
     CxlMemBasePacket,
+    CxlCacheBasePacket,
     SIDEBAND_TYPES,
     PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,
@@ -65,12 +66,14 @@ class CxlPacketProcessor(RunnableComponent):
                 cfg_space=self._cxl_connection.cfg_fifo.target_to_host,
                 mmio=self._cxl_connection.mmio_fifo.target_to_host,
                 cxl_mem=self._cxl_connection.cxl_mem_fifo.target_to_host,
+                cxl_cache=self._cxl_connection.cxl_cache_fifo.target_to_host,
             )
             self._incoming_dir = PROCESSOR_DIRECTION.TARGET_TO_HOST
             self._outgoing = FifoGroup(
                 cfg_space=self._cxl_connection.cfg_fifo.host_to_target,
                 mmio=self._cxl_connection.mmio_fifo.host_to_target,
                 cxl_mem=self._cxl_connection.cxl_mem_fifo.host_to_target,
+                cxl_cache=self._cxl_connection.cxl_cache_fifo.host_to_target,
             )
             self._outgoing_dir = PROCESSOR_DIRECTION.HOST_TO_TARGET
         elif component_type in (CXL_COMPONENT_TYPE.USP, CXL_COMPONENT_TYPE.LD):
@@ -78,12 +81,14 @@ class CxlPacketProcessor(RunnableComponent):
                 cfg_space=self._cxl_connection.cfg_fifo.host_to_target,
                 mmio=self._cxl_connection.mmio_fifo.host_to_target,
                 cxl_mem=self._cxl_connection.cxl_mem_fifo.host_to_target,
+                cxl_cache=self._cxl_connection.cxl_cache_fifo.host_to_target,
             )
             self._incoming_dir = PROCESSOR_DIRECTION.HOST_TO_TARGET
             self._outgoing = FifoGroup(
                 cfg_space=self._cxl_connection.cfg_fifo.target_to_host,
                 mmio=self._cxl_connection.mmio_fifo.target_to_host,
                 cxl_mem=self._cxl_connection.cxl_mem_fifo.target_to_host,
+                cxl_cache=self._cxl_connection.cxl_cache_fifo.target_to_host,
             )
             self._outgoing_dir = PROCESSOR_DIRECTION.TARGET_TO_HOST
         else:
@@ -163,6 +168,12 @@ class CxlPacketProcessor(RunnableComponent):
                     )
                     cxl_mem_packet = cast(CxlMemBasePacket, packet)
                     await self._incoming.cxl_mem.put(cxl_mem_packet)
+                elif packet.is_cxl_cache():
+                    logger.debug(
+                        self._create_message(f"Received {self._incoming_dir} CXL.cache packet")
+                    )
+                    cxl_cache_packet = cast(CxlCacheBasePacket, packet)
+                    await self._incoming.cxl_cache.put(cxl_cache_packet)
                 else:
                     message = f"Received unexpected {self._incoming_dir} packet"
                     logger.debug(self._create_message(message))
