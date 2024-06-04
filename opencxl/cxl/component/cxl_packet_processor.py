@@ -32,6 +32,7 @@ class FifoGroup:
     cfg_space: Queue
     mmio: Queue
     cxl_mem: Queue
+    cxl_cache: Queue
 
 
 class CXL_IO_FIFO_TYPE(IntEnum):
@@ -191,6 +192,7 @@ class CxlPacketProcessor(RunnableComponent):
         await self._outgoing.cfg_space.put(packet)
         await self._outgoing.mmio.put(packet)
         await self._outgoing.cxl_mem.put(packet)
+        await self._outgoing.cxl_cache.put(packet)
 
     async def _process_outgoing_cfg_packets(self):
         logger.debug(self._create_message("Starting outgoing CFG FIFO processor"))
@@ -248,10 +250,21 @@ class CxlPacketProcessor(RunnableComponent):
             await self._writer.drain()
         logger.debug(self._create_message("Stopped outgoing CXL.mem FIFO processor"))
 
+    async def _process_outgoing_cxl_cache_packets(self):
+        logger.debug(self._create_message("Starting outgoing CXL.cache FIFO processor"))
+        while True:
+            packet = await self._outgoing.cxl_cache.get()
+            if self._is_disconnection_notification(packet):
+                break
+            self._writer.write(bytes(packet))
+            await self._writer.drain()
+        logger.debug(self._create_message("Stopped outgoing CXL.cache FIFO processor"))
+
     async def _process_outgoing_packets(self):
         tasks = [
             create_task(self._process_outgoing_cfg_packets()),
             create_task(self._process_outgoing_cxl_mem_packets()),
+            create_task(self._process_outgoing_cxl_cache_packets()),
             create_task(self._process_outgoing_mmio_packets()),
         ]
         await gather(*tasks)
