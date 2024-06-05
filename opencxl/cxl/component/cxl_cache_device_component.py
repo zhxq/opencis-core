@@ -45,29 +45,6 @@ from opencxl.cxl.component.hdm_decoder import (
 )
 
 
-class MEDIA_STATUS(IntEnum):
-    NOT_READY = 0b00
-    READY = 0b01
-    ERROR = 0b10
-    DISABLED = 0b11
-
-
-class RESET_REQUEST(IntEnum):
-    NOT_NEEDED = 0b000
-    COLD_RESET = 0b001
-    WARM_RESET = 0b010
-    HOT_RESET = 0b011
-    CXL_RESET = 0b100
-
-
-class MemoryDeviceStatus(TypedDict):
-    device_fatal: int
-    fw_halt: int
-    media_status: MEDIA_STATUS
-    mailbox_interfaces_ready: int
-    reset_needed: RESET_REQUEST
-
-
 @dataclass
 class CXLCacheCacheLineInfo:
     cache_id: int
@@ -84,6 +61,7 @@ class CXLCacheCacheLineInfo:
 
 
 class CxlCacheDeviceComponent(CxlDeviceComponent):
+    # pylint: disable=duplicate-code
     def __init__(
         self,
         decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_1,
@@ -152,16 +130,6 @@ class CxlCacheDeviceComponent(CxlDeviceComponent):
 
     def get_log_manager(self) -> LogManager:
         return self._log_manager
-
-    def get_status(self) -> MemoryDeviceStatus:
-        status = MemoryDeviceStatus(
-            device_fatal=0,
-            fw_halt=0,
-            media_status=MEDIA_STATUS.READY,
-            mailbox_interfaces_ready=1,
-            reset_needed=RESET_REQUEST.NOT_NEEDED,
-        )
-        return status
 
     async def write_cache(self, cache_id: int, data: int):
         self._cache_info[cache_id].write(data)
