@@ -32,9 +32,6 @@ from opencxl.cxl.cci.generic.events import (
     SetEventInterruptPolicy,
 )
 from opencxl.cxl.cci.generic.logs import GetLog, GetSupportedLogs
-from opencxl.cxl.cci.memory_device.identify_memory_device import (
-    IdentifyMemoryDevice,
-)
 from opencxl.cxl.component.cxl_component import (
     CxlDeviceComponent,
     CXL_COMPONENT_TYPE,
@@ -46,105 +43,6 @@ from opencxl.cxl.component.hdm_decoder import (
     HdmDecoderCapabilities,
     HDM_DECODER_COUNT,
 )
-from opencxl.cxl.config_space.doe.cdat import (
-    CDAT_ENTRY,
-    DeviceScopedMemoryAffinity,
-    DeviceScropedLatencyBandwidthInformation,
-    DeviceScopedEfiMemoryType,
-    HMAT_SLLB_DATA_TYPE,
-    HMAT_SLLB_FLAG,
-)
-
-SIZE_256MB = 256 * 1024 * 1024
-
-
-class CharDriverAccessor:
-    def __init__(self, filename: str, size: int):
-        self.filename = filename
-        self.size = size
-
-    async def write(self, offset: int, data: int, size: int):
-        # TODO: Check for OOB and use asyncio
-        data_bytes = data.to_bytes(size, "little")
-        fd = os.open(self.filename, os.O_WRONLY, 0o644)
-        os.lseek(fd, offset, os.SEEK_SET)
-        os.write(fd, data_bytes)
-        os.close(fd)
-
-    async def read(self, offset: int, size: int) -> int:
-        # TODO: Check for OOB and use asyncio
-        fd = os.open(self.filename, os.O_RDONLY)
-        os.lseek(fd, offset, os.SEEK_SET)
-        data = os.read(fd, size)
-        os.close(fd)
-        return int.from_bytes(data, "little")
-
-
-class FileAccessor:
-    def __init__(self, filename: str, _: int):
-        self.filename = filename
-        with open(filename, "wb") as file:
-            file.write(b"\x00" * 1024)
-            file.flush()
-
-    async def write(self, offset: int, data: int, size: int):
-        # TODO: Check for OOB and use asyncio
-        with open(self.filename, "r+b") as file:
-            file.seek(offset)
-            file.write(data.to_bytes(size, byteorder="little"))
-
-    async def read(self, offset: int, size: int) -> int:
-        # TODO: Check for OOB and use asyncio
-        with open(self.filename, "rb") as file:
-            file.seek(offset)
-            data = file.read(size)
-            return int.from_bytes(data, byteorder="little")
-
-
-class MemoryDeviceIdentity(UnalignedBitStructure):
-    # TODO: Support str type for fw_revision
-    fw_revision: int
-    total_capacity: int
-    volatile_only_capacity: int
-    persistent_only_capacity: int
-    partition_alignment: int
-    information_event_log_size: int
-    warning_event_log_size: int
-    failure_event_log_size: int
-    fatal_event_log_size: int
-    lsa_size: int
-    poison_list_maximum_media_error_records: int
-    inject_poison_limit: int
-    poison_handling_capabilities: int
-    qos_telemetry_capabilities: int
-    dynamic_capacity_event_log_size: int
-
-    _fields = [
-        ByteField("fw_revision", 0x00, 0x0F),
-        ByteField("total_capacity", 0x10, 0x17),
-        ByteField("volatile_only_capacity", 0x18, 0x1F),
-        ByteField("persistent_only_capacity", 0x20, 0x27),
-        ByteField("partition_alignment", 0x28, 0x2F),
-        ByteField("information_event_log_size", 0x30, 0x31, default=1),
-        ByteField("warning_event_log_size", 0x32, 0x33, default=1),
-        ByteField("failure_event_log_size", 0x34, 0x35, default=1),
-        ByteField("fatal_event_log_size", 0x36, 0x37, default=1),
-        ByteField("lsa_size", 0x38, 0x3B),
-        ByteField("poison_list_maximum_media_error_records", 0x3C, 0x3E),
-        ByteField("inject_poison_limit", 0x3F, 0x40),
-        ByteField("poison_handling_capabilities", 0x41, 0x41),
-        ByteField("qos_telemetry_capabilities", 0x42, 0x42),
-        ByteField("dynamic_capacity_event_log_size", 0x43, 0x44),
-    ]
-
-    def get_total_capacity(self) -> int:
-        return self.total_capacity * SIZE_256MB
-
-    def set_total_capacity(self, capacity: int):
-        self.total_capacity = capacity // SIZE_256MB
-
-    def set_volatile_only_capacity(self, capacity: int):
-        self.volatile_only_capacity = capacity // SIZE_256MB
 
 
 class MEDIA_STATUS(IntEnum):
@@ -241,40 +139,6 @@ class CxlCacheDeviceComponent(CxlDeviceComponent):
 
     def get_hdm_decoder_manager(self) -> Optional[HdmDecoderManagerBase]:
         return self._hdm_decoder_manager
-
-    def get_cdat_entries(self) -> List[CDAT_ENTRY]:
-        dsmas = DeviceScopedMemoryAffinity()
-        dsmas.dpa_length = 0
-
-        dslbis0 = DeviceScropedLatencyBandwidthInformation()
-        dslbis0.flags = HMAT_SLLB_FLAG.MEMORY
-        dslbis0.data_type = HMAT_SLLB_DATA_TYPE.READ_LATENCY
-        dslbis0.entry_base_unit = 10000
-        dslbis0.entry0 = 15
-
-        dslbis1 = DeviceScropedLatencyBandwidthInformation()
-        dslbis1.flags = HMAT_SLLB_FLAG.MEMORY
-        dslbis1.data_type = HMAT_SLLB_DATA_TYPE.WRITE_LATENCY
-        dslbis1.entry_base_unit = 10000
-        dslbis1.entry0 = 25
-
-        dslbis2 = DeviceScropedLatencyBandwidthInformation()
-        dslbis2.flags = HMAT_SLLB_FLAG.MEMORY
-        dslbis2.data_type = HMAT_SLLB_DATA_TYPE.READ_BANDWIDTH
-        dslbis2.entry_base_unit = 1000
-        dslbis2.entry0 = 16
-
-        dslbis3 = DeviceScropedLatencyBandwidthInformation()
-        dslbis3.flags = HMAT_SLLB_FLAG.MEMORY
-        dslbis3.data_type = HMAT_SLLB_DATA_TYPE.WRITE_BANDWIDTH
-        dslbis3.entry_base_unit = 1000
-        dslbis3.entry0 = 16
-
-        dsemts = DeviceScopedEfiMemoryType()
-        dsemts.dpa_length = 0
-
-        entries = [dsmas, dslbis0, dslbis1, dslbis2, dslbis3, dsemts]
-        return entries
 
     def get_component_type(self) -> CXL_COMPONENT_TYPE:
         return CXL_COMPONENT_TYPE.LD
