@@ -29,6 +29,7 @@ class CxlHost(RunnableComponent):
     def __init__(
         self,
         port_index: int,
+        no_hm: bool = False,
         switch_host: str = "0.0.0.0",
         switch_port: int = 8000,
         host_host: str = "0.0.0.0",
