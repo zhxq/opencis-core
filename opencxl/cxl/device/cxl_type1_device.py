@@ -73,15 +73,16 @@ class CXLType1Device(RunnableComponent):
         self,
         mmio_manager: MmioManager,
     ):
-        # TODO: Create PCiComponent
-        # pci_identity = PciComponentIdentity(
-        #     vendor_id=EEUM_VID,
-        #     device_id=SW_SLD_DID,
-        #     base_class_code=PCI_CLASS.MEMORY_CONTROLLER,
-        #     sub_class_coce=MEMORY_CONTROLLER_SUBCLASS.CXL_MEMORY_DEVICE,
-        #     programming_interface=0x10,
-        # )
-        # pci_component = PciComponent(pci_identity, mmio_manager)
+        # pylint: disable=unused-variable
+        # Create PCiComponent, which will be used in the future
+        pci_identity = PciComponentIdentity(
+            vendor_id=EEUM_VID,
+            device_id=SW_SLD_DID,
+            base_class_code=PCI_CLASS.MEMORY_CONTROLLER,
+            sub_class_coce=MEMORY_CONTROLLER_SUBCLASS.CXL_MEMORY_DEVICE,
+            programming_interface=0x10,
+        )
+        pci_component = PciComponent(pci_identity, mmio_manager)
 
         # TODO: Create CxlCacheDeviceComponent
         # self._cxl_cache_device_component = CxlCacheDeviceComponent(
