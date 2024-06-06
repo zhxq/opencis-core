@@ -5,6 +5,7 @@
  See LICENSE for details.
 """
 
+# pylint: disable=unused-import
 from typing import Optional, cast
 
 from opencxl.util.logger import logger
