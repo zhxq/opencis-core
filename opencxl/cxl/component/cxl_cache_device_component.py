@@ -5,6 +5,7 @@
  See LICENSE for details.
 """
 
+# pylint: disable=unused-import
 from dataclasses import dataclass
 from enum import IntEnum
 import os
