@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-# pylint: disable=duplicate-code
+# pylint: disable=duplicate-code, unused-import
 from asyncio import create_task, gather
 from dataclasses import dataclass
 from typing import Optional
