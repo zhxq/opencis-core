@@ -5,6 +5,7 @@
  See LICENSE for details.
 """
 
+# pylint: disable=duplicate-code
 from asyncio import gather, create_task
 import pytest
 
