@@ -7,7 +7,6 @@
 
 # pylint: disable=duplicate-code
 from asyncio import create_task, gather
-from dataclasses import dataclass
 from typing import Optional
 
 from opencxl.util.logger import logger
