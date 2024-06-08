@@ -263,7 +263,7 @@ async def test_cxl_host_util_client():
 
 
 @pytest.mark.asyncio
-async def test_cxl_host_ete():
+async def test_cxl_host_type3_ete():
     # pylint: disable=protected-access
     host_port = BASE_TEST_PORT + pytest.PORT.TEST_5
     util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 50
@@ -341,11 +341,11 @@ async def test_cxl_host_ete():
 
 
 @pytest.mark.asyncio
-async def test_cxl_host_ete():
+async def test_cxl_host_type2_ete():
     # pylint: disable=protected-access
-    host_port = BASE_TEST_PORT + pytest.PORT.TEST_5
-    util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 50
-    switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 51
+    host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 52
+    util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 53
+    switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 54
 
     port_configs = [
         PortConfig(PORT_TYPE.USP),
