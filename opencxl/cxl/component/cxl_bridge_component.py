@@ -40,6 +40,7 @@ class CxlUpstreamPortComponent(CxlComponent):
             uio_capable=0,
             uio_capable_decoder_count=0,
             mem_data_nxm_capable=0,
+            bi_capable=True,
         )
         self._hdm_decoder_manager = SwitchHdmDecoderManager(hdm_decoder_capabilities, label)
         self._routing_table = None

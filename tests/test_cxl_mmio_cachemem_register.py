@@ -69,6 +69,7 @@ def test_hdm_decoder_capability_with_one_decoder():
         uio_capable=0,
         uio_capable_decoder_count=0,
         mem_data_nxm_capable=0,
+        bi_capable=True,
     )
     options = CxlHdmDecoderCapabilityStructureOptions(hdm_decoder_manager=hdm_decoder_manager)
     register = CxlHdmDecoderCapabilityStructure(options=options)
@@ -89,6 +90,7 @@ def test_hdm_decoder_capability_with_four_decoders():
             uio_capable=0,
             uio_capable_decoder_count=0,
             mem_data_nxm_capable=0,
+            bi_capable=True,
         )
     )
     options = CxlHdmDecoderCapabilityStructureOptions(hdm_decoder_manager=hdm_decoder_manager)
@@ -110,6 +112,7 @@ def test_hdm_decoder_capability_enable_decoder():
         uio_capable=0,
         uio_capable_decoder_count=0,
         mem_data_nxm_capable=0,
+        bi_capable=True,
     )
     options = CxlHdmDecoderCapabilityStructureOptions(hdm_decoder_manager=hdm_decoder_manager)
     register = CxlHdmDecoderCapabilityStructure(options=options)
@@ -134,6 +137,7 @@ def test_hdm_decoder_capability_commit():
                     uio_capable=0,
                     uio_capable_decoder_count=0,
                     mem_data_nxm_capable=0,
+                    bi_capable=True,
                 )
             )
             hdm_decoder_manager.get_device_type.return_value = CXL_DEVICE_TYPE.MEM_DEVICE
@@ -202,6 +206,7 @@ def test_cachemem_register_with_options_hdm_decoder_only():
             uio_capable=0,
             uio_capable_decoder_count=0,
             mem_data_nxm_capable=0,
+            bi_capable=True,
         )
     )
     options["hdm_decoder"] = CxlHdmDecoderCapabilityStructureOptions(
@@ -230,6 +235,7 @@ def test_cachemem_register_with_options_all():
             uio_capable=0,
             uio_capable_decoder_count=0,
             mem_data_nxm_capable=0,
+            bi_capable=True,
         )
     )
     options["hdm_decoder"] = CxlHdmDecoderCapabilityStructureOptions(
