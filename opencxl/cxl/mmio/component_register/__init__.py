@@ -46,6 +46,7 @@ class CxlComponentRegister(BitMaskedBitStructure):
 
         cachemem_options["link"] = True
         cachemem_options["ras"] = True
+        cachemem_options["bi_decoder"] = True
 
         self._fields = [
             ByteField("io", 0x0000, 0x0FFF, attribute=FIELD_ATTR.RESERVED),

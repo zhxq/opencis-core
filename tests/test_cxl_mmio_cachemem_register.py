@@ -45,6 +45,7 @@ def test_cxl_capability_header_register():
         "ras": 0x100,
         "link": 0x200,
         "hdm_decoder": 0x400,
+        "bi_decoder": 0x600,
     }
     register = CxlCapabilityHeaderStructure(options=options)
     assert hasattr(register, "ras")
@@ -53,8 +54,9 @@ def test_cxl_capability_header_register():
     assert register.link.cxl_capability_id == 0x0004
     assert hasattr(register, "hdm_decoder")
     assert register.hdm_decoder.cxl_capability_id == 0x0005
-    assert hasattr(register, "header")
-    assert register.header.array_size == 0x3
+    assert hasattr(register, "bi_decoder")
+    assert register.bi_decoder.cxl_capability_id == 0x000C
+    assert register.header.array_size == len(options.items())
 
 
 def test_hdm_decoder_capability_with_one_decoder():
@@ -216,6 +218,19 @@ def test_cachemem_register_with_options_hdm_decoder_only():
     assert len(register) == CXL_CACHE_MEM_REGISTER_SIZE
     assert hasattr(register, "capability_header")
     assert hasattr(register, "hdm_decoder")
+    assert not hasattr(register, "ras")
+    assert not hasattr(register, "link")
+
+
+def test_cachemem_register_with_options_bi_decoder_only():
+    options = CxlCacheMemRegisterOptions()
+
+    options["bi_decoder"] = True
+    register = CxlCacheMemRegister(options=options)
+    assert len(register) == CXL_CACHE_MEM_REGISTER_SIZE
+    assert hasattr(register, "capability_header")
+    assert hasattr(register, "bi_decoder")
+    assert not hasattr(register, "hdm_decoder")
     assert not hasattr(register, "ras")
     assert not hasattr(register, "link")
 

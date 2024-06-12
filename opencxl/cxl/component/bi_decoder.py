@@ -29,7 +29,7 @@ class CXL_DEVICE_TYPE(Enum):
     ROOT_PORT = auto()
 
 
-class BIDecoderCapabilities(TypedDict):
+class CxlBIDecoderCapabilities(TypedDict):
     # pylint: disable=duplicate-code
     hdm_d_compatible: int
     explicit_bi_decoder_commit_required: int
@@ -67,6 +67,12 @@ class CxlBIDecoderStatusRegisterOptions(TypedDict):
     reserved2: int
 
 
+class CxlBIDecoderCapabilityStructureOptions(TypedDict):
+    capability_options: CXLBIDecoderCapabilityRegisterOptions
+    control_options: CxlBIDecoderControlRegisterOptions
+    status_options: CxlBIDecoderStatusRegisterOptions
+
+
 class CxlBIDecoderCapabilityRegister(BitMaskedBitStructure):
     hdm_d_compatible: int
     explicit_bi_decoder_commit_required: int
@@ -75,12 +81,14 @@ class CxlBIDecoderCapabilityRegister(BitMaskedBitStructure):
         self,
         data: Optional[ShareableByteArray] = None,
         parent_name: Optional[str] = None,
-        options: Optional[BIDecoderCapabilities] = None,
+        options: Optional[CxlBIDecoderCapabilityStructureOptions] = None,
     ):
         if not options:
             raise Exception("options is required")
-        device_type = options["device_type"]
 
+        options = options["capability_options"]
+        device_type = options["device_type"]
+        hdm_d_compatible = options["hdm_d_compatible"]
         self._fields = [
             BitField(
                 "hdm_d_compatible",
@@ -103,6 +111,7 @@ class CxlBIDecoderCapabilityRegister(BitMaskedBitStructure):
                     or device_type == CXL_DEVICE_TYPE.ROOT_PORT
                     else FIELD_ATTR.HW_INIT
                 ),
+                default=options["explicit_bi_decoder_commit_required"],
             ),
             BitField("reserved", 2, 31, FIELD_ATTR.RESERVED),
         ]
@@ -121,11 +130,13 @@ class CxlBIDecoderControlRegister(BitMaskedBitStructure):
         self,
         data: Optional[ShareableByteArray] = None,
         parent_name: Optional[str] = None,
-        options: Optional[CxlBIDecoderControlRegisterOptions] = None,
+        options: Optional[CxlBIDecoderCapabilityStructureOptions] = None,
     ):
         if not options:
             raise Exception("options is required")
 
+        capability_options = options["capability_options"]
+        options = options["control_options"]
         self.bi_forward = options["bi_forward"]
         self.bi_enable = options["bi_enable"]
         self.bi_decoder_commit = options["bi_decoder_commit"]
@@ -136,33 +147,20 @@ class CxlBIDecoderControlRegister(BitMaskedBitStructure):
             FIELD_ATTR.RESERVED if device_type == CXL_DEVICE_TYPE.MEM_DEVICE else FIELD_ATTR.RW
         )
 
+        bi_decoder_commit_attr = (
+            FIELD_ATTR.RESERVED
+            if capability_options["explicit_bi_decoder_commit_required"] == 0
+            else FIELD_ATTR.RW
+        )
+
         self._fields = [
             BitField("bi_forward", 0, 0, bi_forward_attr),
             BitField("bi_enable", 1, 1, FIELD_ATTR.RW),
-            BitField("bi_decoder_commit", 2, 2, FIELD_ATTR.RW),
+            BitField("bi_decoder_commit", 2, 2, bi_decoder_commit_attr),
             BitField("reserved", 3, 31, FIELD_ATTR.RESERVED),
         ]
 
         super().__init__(data, parent_name)
-
-    def write_bytes(self, start_offset: int, end_offset: int, value: int):
-        commit_before = self.commit
-        super().write_bytes(start_offset, end_offset, value)
-        commit_after = self.commit
-
-        if not self.handle_commit:
-            return
-
-        # TODO: Implement lock on commit
-        if commit_before == 0 and commit_after == 1:
-            if self.handle_commit(self.decoder_index):
-                self.commit = 0
-                self.committed = 1
-                self.error_not_committed = 0
-            else:
-                self.commit = 0
-                self.committed = 0
-                self.error_not_committed = 1
 
 
 class CxlBIDecoderStatusRegister(BitMaskedBitStructure):
@@ -189,11 +187,31 @@ class CxlBIDecoderStatusRegister(BitMaskedBitStructure):
         self.parent_name = parent_name
 
         self._fields = [
-            BitField("bi_decoder_committed", 0, 0, FIELD_ATTR.RO),
-            BitField("bi_decoder_error_not_committed", 1, 1, FIELD_ATTR.RO),
+            BitField(
+                "bi_decoder_committed", 0, 0, FIELD_ATTR.RO, default=self.bi_decoder_committed
+            ),
+            BitField(
+                "bi_decoder_error_not_committed",
+                1,
+                1,
+                FIELD_ATTR.RO,
+                default=self.bi_decoder_error_not_committed,
+            ),
             BitField("reserved1", 2, 7, FIELD_ATTR.RESERVED),
-            BitField("bi_decoder_commit_timeout_scale", 8, 11, FIELD_ATTR.HW_INIT),
-            BitField("bi_decoder_commit_timeout_base", 12, 15, FIELD_ATTR.HW_INIT),
+            BitField(
+                "bi_decoder_commit_timeout_scale",
+                8,
+                11,
+                FIELD_ATTR.HW_INIT,
+                default=self.bi_decoder_commit_timeout_scale,
+            ),
+            BitField(
+                "bi_decoder_commit_timeout_base",
+                12,
+                15,
+                FIELD_ATTR.HW_INIT,
+                default=self.bi_decoder_commit_timeout_base,
+            ),
             BitField("reserved2", 16, 31, FIELD_ATTR.RESERVED),
         ]
 
@@ -206,16 +224,15 @@ class CxlBIDecoderCapabilityStructure(BitMaskedBitStructure):
         self,
         data: Optional[ShareableByteArray] = None,
         parent_name: Optional[str] = None,
+        options: Optional[CxlBIDecoderCapabilityStructureOptions] = None,
     ):
-
-        self._init_global()
+        if not options:
+            raise Exception("options is required")
+        self._init_global(options)
 
         super().__init__(data, parent_name)
 
-    def _init_global(self):
-        control_options = CxlBIDecoderControlRegisterOptions()
-        capability_register_options = CXLBIDecoderCapabilityRegisterOptions()
-        status_register_options = CxlBIDecoderStatusRegisterOptions()
+    def _init_global(self, options: CxlBIDecoderCapabilityStructureOptions):
 
         self._fields = [
             StructureField(
@@ -223,21 +240,21 @@ class CxlBIDecoderCapabilityStructure(BitMaskedBitStructure):
                 0,
                 3,
                 CxlBIDecoderCapabilityRegister,
-                options=capability_register_options,
+                options=options,
             ),
             StructureField(
                 "control",
                 4,
                 7,
                 CxlBIDecoderControlRegister,
-                options=control_options,
+                options=options,
             ),
             StructureField(
                 "status",
                 8,
                 11,
                 CxlBIDecoderStatusRegister,
-                options=status_register_options,
+                options=options,
             ),
             ByteField("reserved1", 12, 15, attribute=FIELD_ATTR.RESERVED),
         ]
