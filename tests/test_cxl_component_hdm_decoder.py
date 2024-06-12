@@ -26,6 +26,7 @@ def test_device_hdm_decoder_manager():
         uio_capable=0,
         uio_capable_decoder_count=0,
         mem_data_nxm_capable=0,
+        bi_capable=True,
     )
     decoder = DeviceHdmDecoderManager(capabilities)
     assert decoder.get_device_type() == CXL_DEVICE_TYPE.MEM_DEVICE

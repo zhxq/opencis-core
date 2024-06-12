@@ -43,7 +43,7 @@ class HdmDecoderCapabilities(TypedDict):
     uio_capable: int
     uio_capable_decoder_count: int
     mem_data_nxm_capable: int
-    bi_capable: bool = True
+    bi_capable: bool
 
 
 @dataclass

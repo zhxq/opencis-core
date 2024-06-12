@@ -212,6 +212,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             uio_capable=0,
             uio_capable_decoder_count=0,
             mem_data_nxm_capable=0,
+            bi_capable=True,
         )
         self._hdm_decoder_manager = DeviceHdmDecoderManager(hdm_decoder_capabilities, label=label)
         if "/dev" in memory_file:
