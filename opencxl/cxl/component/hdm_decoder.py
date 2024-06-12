@@ -30,7 +30,6 @@ class HDM_DECODER_COUNT(IntEnum):
     DECODER_32 = 0xC
 
 
-@dataclass
 class HdmDecoderCapabilities(TypedDict):
     # pylint: disable=duplicate-code
     decoder_count: HDM_DECODER_COUNT
