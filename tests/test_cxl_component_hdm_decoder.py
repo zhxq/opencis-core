@@ -30,7 +30,7 @@ def test_device_hdm_decoder_manager():
     )
     decoder = DeviceHdmDecoderManager(capabilities)
     assert decoder.get_device_type() == CXL_DEVICE_TYPE.MEM_DEVICE
-    assert decoder.is_bi_capable() is False
+    assert decoder.is_bi_capable() is True
     assert decoder.get_capabilities() == capabilities
     assert decoder.decoder_enable(True) is None
     assert decoder.poison_enable(True) is None
