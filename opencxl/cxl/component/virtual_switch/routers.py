@@ -27,6 +27,8 @@ from opencxl.cxl.transport.transaction import (
     CxlMemBasePacket,
     CxlMemM2SReqPacket,
     CxlMemM2SRwDPacket,
+    CxlMemM2SBIRspPacket,
+    CxlMemS2MBISnpPacket,
 )
 
 
@@ -280,4 +282,9 @@ class CxlMemRouter(CxlRouter):
             packet = await downstream_connection.target_to_host.get()
             if packet is None:
                 break
+
+            cxl_mem_base_packet = cast(CxlMemBasePacket, packet)
+            if cxl_mem_base_packet.is_s2mbisnp():
+                cxl_mem_packet = cast(CxlMemS2MBISnpPacket, packet)
+
             await self._upstream_connection.target_to_host.put(packet)
