@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import cast
 
+from opencxl.util.logger import logger
 from opencxl.util.unaligned_bit_structure import (
     UnalignedBitStructure,
     BitField,
@@ -326,11 +327,11 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
         addr_upper_bytes = self.mreq_header.addr_upper.to_bytes(7, byteorder="little")
         addr |= int.from_bytes(addr_upper_bytes, byteorder="big") << 8
         addr |= self.mreq_header.addr_lower << 2
-        return addr
+        return addr >> 8
 
     def get_data_size(self) -> int:
         size = (self.cxl_io_header.length_upper << 8) | (self.cxl_io_header.length_lower & 0xFF)
-        return size * 4
+        return size
 
 
 class CxlIoMemRdPacket(CxlIoMemReqPacket):
@@ -454,8 +455,9 @@ class CxlIoCfgReqPacket(CxlIoBasePacket):
         return self
 
     def get_cfg_addr_read_info(self) -> int:
-        reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
-        return reg_num << 2, 4
+        # reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
+        # return reg_num << 2, 4
+        return self.get_cfg_addr_write_info()
 
     def get_cfg_addr_write_info(self):
         reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
