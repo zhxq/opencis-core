@@ -331,7 +331,7 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
 
     def get_data_size(self) -> int:
         size = (self.cxl_io_header.length_upper << 8) | (self.cxl_io_header.length_lower & 0xFF)
-        return size
+        return size * 4
 
 
 class CxlIoMemRdPacket(CxlIoMemReqPacket):
