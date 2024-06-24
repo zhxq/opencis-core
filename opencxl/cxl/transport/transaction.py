@@ -308,10 +308,10 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
         ),
     ]
 
-    def fill(self, addr: int, length: int) -> "CxlIoMemRdPacket":
+    def fill(self, addr: int, length_dword: int) -> "CxlIoMemRdPacket":
         self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
-        self.cxl_io_header.length_upper = length & 0x300
-        self.cxl_io_header.length_lower = length & 0xFF
+        self.cxl_io_header.length_upper = length_dword & 0x300
+        self.cxl_io_header.length_lower = length_dword & 0xFF
         self.mreq_header.req_id = 0
         self.mreq_header.tag = get_randbits(8)
 
@@ -327,7 +327,7 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
         addr_upper_bytes = self.mreq_header.addr_upper.to_bytes(7, byteorder="little")
         addr |= int.from_bytes(addr_upper_bytes, byteorder="big") << 8
         addr |= self.mreq_header.addr_lower << 2
-        return addr >> 8
+        return addr
 
     def get_data_size(self) -> int:
         size = (self.cxl_io_header.length_upper << 8) | (self.cxl_io_header.length_lower & 0xFF)
