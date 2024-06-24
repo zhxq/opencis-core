@@ -455,9 +455,8 @@ class CxlIoCfgReqPacket(CxlIoBasePacket):
         return self
 
     def get_cfg_addr_read_info(self) -> int:
-        # reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
-        # return reg_num << 2, 4
-        return self.get_cfg_addr_write_info()
+        reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
+        return reg_num << 2, 4
 
     def get_cfg_addr_write_info(self):
         reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
