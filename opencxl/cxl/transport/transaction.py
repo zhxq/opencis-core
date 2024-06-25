@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import cast
 
-from opencxl.util.logger import logger
 from opencxl.util.unaligned_bit_structure import (
     UnalignedBitStructure,
     BitField,
