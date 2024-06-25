@@ -127,8 +127,7 @@ class ConfigSpaceManager(RunnableComponent):
             return
 
         cfg_addr, size = cfg_wr_packet.get_cfg_addr_write_info()
-        # value = cfg_wr_packet.get_value()
-        value = cfg_wr_packet.value
+        value = cfg_wr_packet.get_value()
 
         # TODO: Fix OOB
 
