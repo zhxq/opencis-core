@@ -12,7 +12,6 @@ from opencxl.util.unaligned_bit_structure import (
     BitMaskedBitStructure,
     BitField,
     StructureField,
-    ByteField,
     FIELD_ATTR,
     ShareableByteArray,
 )
@@ -31,6 +30,12 @@ class CacheBITimeoutScale(IntEnum):
     _10_S = 0b0111
 
 
+# BI Route Table
+
+
+# BI Decoder
+
+
 class CxlBIDecoderControlRegisterOptions(TypedDict):
     bi_forward: int
     bi_enable: int
@@ -43,22 +48,11 @@ class CXLBIDecoderCapabilityRegisterOptions(TypedDict):
     explicit_bi_decoder_commit_required: int
 
 
-class CxlBIDecoderCommitTimeoutScale(Enum):
-    ONE_NS = 0b0000
-    TEN_NS = 0b0001
-    HUNDRED_NS = 0b0010
-    ONE_MS = 0b0011
-    TEN_MS = 0b0100
-    HUNDRED_MS = 0b0101
-    ONE_S = 0b0110
-    TEN_S = 0b0111
-
-
 class CxlBIDecoderStatusRegisterOptions(TypedDict):
     bi_decoder_committed: int
     bi_decoder_error_not_committed: int
     reserved1: int
-    bi_decoder_commit_timeout_scale: CxlBIDecoderCommitTimeoutScale
+    bi_decoder_commit_timeout_scale: CacheBITimeoutScale
     bi_decoder_commit_timeout_base: int
     reserved2: int
 
@@ -165,7 +159,7 @@ class CxlBIDecoderStatusRegister(BitMaskedBitStructure):
     bi_decoder_committed: int
     bi_decoder_error_not_committed: int
     reserved1: int
-    bi_decoder_commit_timeout_scale: CxlBIDecoderCommitTimeoutScale
+    bi_decoder_commit_timeout_scale: CacheBITimeoutScale
     bi_decoder_commit_timeout_base: int
     reserved2: int
 
