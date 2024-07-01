@@ -18,6 +18,11 @@ from opencxl.cxl.mmio.component_register.memcache_register import (
     CxlCacheMemRegister,
     CxlCacheMemRegisterOptions,
 )
+from opencxl.cxl.component.bi_decoder import (
+    CXLBIDecoderCapabilityRegisterOptions,
+    CxlBIDecoderControlRegisterOptions,
+    CxlBIDecoderStatusRegisterOptions,
+)
 from opencxl.cxl.component.cxl_component import CxlComponent
 
 CXL_COMPONENT_REGISTER_SIZE = 0x10000
@@ -46,7 +51,8 @@ class CxlComponentRegister(BitMaskedBitStructure):
 
         cachemem_options["link"] = True
         cachemem_options["ras"] = True
-        cachemem_options["bi_decoder"] = True
+        if cxl_component.get_bi_decoder_options():
+            cachemem_options["bi_decoder"] = cxl_component.get_bi_decoder_options()
 
         self._fields = [
             ByteField("io", 0x0000, 0x0FFF, attribute=FIELD_ATTR.RESERVED),

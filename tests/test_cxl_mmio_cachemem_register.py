@@ -20,6 +20,15 @@ from opencxl.cxl.mmio.component_register.memcache_register import (
     CxlCacheMemRegisterOptions,
     CXL_CACHE_MEM_REGISTER_SIZE,
 )
+from opencxl.cxl.component.bi_decoder import (
+    CxlBIDecoderCapabilityStructureOptions,
+    CXLBIDecoderCapabilityRegisterOptions,
+    CxlBIDecoderControlRegisterOptions,
+    CxlBIDecoderStatusRegisterOptions,
+    CxlBIDecoderCapabilityStructure,
+    CacheBITimeoutScale,
+)
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.hdm_decoder import (
     HdmDecoderCapabilities,
     DecoderInfo,
@@ -225,7 +234,20 @@ def test_cachemem_register_with_options_hdm_decoder_only():
 def test_cachemem_register_with_options_bi_decoder_only():
     options = CxlCacheMemRegisterOptions()
 
-    options["bi_decoder"] = True
+    options["bi_decoder"] = CxlBIDecoderCapabilityStructureOptions()
+    options["bi_decoder"]["capability_options"] = CXLBIDecoderCapabilityRegisterOptions(
+        hdm_d_compatible=0, explicit_bi_decoder_commit_required=1
+    )
+    options["bi_decoder"]["control_options"] = CxlBIDecoderControlRegisterOptions(
+        bi_forward=1, bi_enable=1, bi_decoder_commit=0
+    )
+    options["bi_decoder"]["status_options"] = CxlBIDecoderStatusRegisterOptions(
+        bi_decoder_committed=0,
+        bi_decoder_error_not_committed=0,
+        bi_decoder_commit_timeout_base=CacheBITimeoutScale._100_mS,
+        bi_decoder_commit_timeout_scale=1,
+    )
+    options["bi_decoder"]["device_type"] = CXL_COMPONENT_TYPE.LD
     register = CxlCacheMemRegister(options=options)
     assert len(register) == CXL_CACHE_MEM_REGISTER_SIZE
     assert hasattr(register, "capability_header")
@@ -233,6 +255,13 @@ def test_cachemem_register_with_options_bi_decoder_only():
     assert not hasattr(register, "hdm_decoder")
     assert not hasattr(register, "ras")
     assert not hasattr(register, "link")
+
+
+def test_bi_decoder_without_options_only():
+    try:
+        register = CxlBIDecoderCapabilityStructure(options=None)
+    except:
+        pass
 
 
 def test_cachemem_register_with_options_all():
@@ -256,9 +285,24 @@ def test_cachemem_register_with_options_all():
     options["hdm_decoder"] = CxlHdmDecoderCapabilityStructureOptions(
         hdm_decoder_manager=hdm_decoder_manager
     )
+    options["bi_decoder"] = CxlBIDecoderCapabilityStructureOptions()
+    options["bi_decoder"]["capability_options"] = CXLBIDecoderCapabilityRegisterOptions(
+        hdm_d_compatible=0, explicit_bi_decoder_commit_required=1
+    )
+    options["bi_decoder"]["control_options"] = CxlBIDecoderControlRegisterOptions(
+        bi_forward=1, bi_enable=1, bi_decoder_commit=0
+    )
+    options["bi_decoder"]["status_options"] = CxlBIDecoderStatusRegisterOptions(
+        bi_decoder_committed=0,
+        bi_decoder_error_not_committed=0,
+        bi_decoder_commit_timeout_base=CacheBITimeoutScale._100_mS,
+        bi_decoder_commit_timeout_scale=1,
+    )
+    options["bi_decoder"]["device_type"] = CXL_COMPONENT_TYPE.LD
     register = CxlCacheMemRegister(options=options)
     assert len(register) == CXL_CACHE_MEM_REGISTER_SIZE
     assert hasattr(register, "capability_header")
+    assert hasattr(register, "bi_decoder")
     assert hasattr(register, "ras")
     assert hasattr(register, "link")
     assert hasattr(register, "hdm_decoder")
