@@ -22,11 +22,11 @@ from opencxl.cxl.mmio.component_register.memcache_register import (
 )
 from opencxl.cxl.component.bi_decoder import (
     CxlBIDecoderCapabilityStructureOptions,
-    CXLBIDecoderCapabilityRegisterOptions,
+    CxlBIDecoderCapabilityRegisterOptions,
     CxlBIDecoderControlRegisterOptions,
     CxlBIDecoderStatusRegisterOptions,
     CxlBIDecoderCapabilityStructure,
-    CacheBITimeoutScale,
+    CxlBITimeoutScale,
 )
 from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.hdm_decoder import (
@@ -235,7 +235,7 @@ def test_cachemem_register_with_options_bi_decoder_only():
     options = CxlCacheMemRegisterOptions()
 
     options["bi_decoder"] = CxlBIDecoderCapabilityStructureOptions()
-    options["bi_decoder"]["capability_options"] = CXLBIDecoderCapabilityRegisterOptions(
+    options["bi_decoder"]["capability_options"] = CxlBIDecoderCapabilityRegisterOptions(
         hdm_d_compatible=0, explicit_bi_decoder_commit_required=1
     )
     options["bi_decoder"]["control_options"] = CxlBIDecoderControlRegisterOptions(
@@ -244,7 +244,7 @@ def test_cachemem_register_with_options_bi_decoder_only():
     options["bi_decoder"]["status_options"] = CxlBIDecoderStatusRegisterOptions(
         bi_decoder_committed=0,
         bi_decoder_error_not_committed=0,
-        bi_decoder_commit_timeout_base=CacheBITimeoutScale._100_mS,
+        bi_decoder_commit_timeout_base=CxlBITimeoutScale._100_mS,
         bi_decoder_commit_timeout_scale=1,
     )
     options["bi_decoder"]["device_type"] = CXL_COMPONENT_TYPE.LD
@@ -286,7 +286,7 @@ def test_cachemem_register_with_options_all():
         hdm_decoder_manager=hdm_decoder_manager
     )
     options["bi_decoder"] = CxlBIDecoderCapabilityStructureOptions()
-    options["bi_decoder"]["capability_options"] = CXLBIDecoderCapabilityRegisterOptions(
+    options["bi_decoder"]["capability_options"] = CxlBIDecoderCapabilityRegisterOptions(
         hdm_d_compatible=0, explicit_bi_decoder_commit_required=1
     )
     options["bi_decoder"]["control_options"] = CxlBIDecoderControlRegisterOptions(
@@ -295,7 +295,7 @@ def test_cachemem_register_with_options_all():
     options["bi_decoder"]["status_options"] = CxlBIDecoderStatusRegisterOptions(
         bi_decoder_committed=0,
         bi_decoder_error_not_committed=0,
-        bi_decoder_commit_timeout_base=CacheBITimeoutScale._100_mS,
+        bi_decoder_commit_timeout_base=CxlBITimeoutScale._100_mS,
         bi_decoder_commit_timeout_scale=1,
     )
     options["bi_decoder"]["device_type"] = CXL_COMPONENT_TYPE.LD

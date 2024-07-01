@@ -19,7 +19,7 @@ from opencxl.cxl.mmio.component_register.memcache_register import (
     CxlCacheMemRegisterOptions,
 )
 from opencxl.cxl.component.bi_decoder import (
-    CXLBIDecoderCapabilityRegisterOptions,
+    CxlBIDecoderCapabilityRegisterOptions,
     CxlBIDecoderControlRegisterOptions,
     CxlBIDecoderStatusRegisterOptions,
 )

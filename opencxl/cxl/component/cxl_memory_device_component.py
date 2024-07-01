@@ -35,10 +35,10 @@ from opencxl.cxl.cci.memory_device.identify_memory_device import (
 )
 from opencxl.cxl.component.bi_decoder import (
     CxlBIDecoderCapabilityStructureOptions,
-    CXLBIDecoderCapabilityRegisterOptions,
+    CxlBIDecoderCapabilityRegisterOptions,
     CxlBIDecoderControlRegisterOptions,
     CxlBIDecoderStatusRegisterOptions,
-    CacheBITimeoutScale,
+    CxlBITimeoutScale,
 )
 from opencxl.cxl.component.cxl_component import (
     CxlDeviceComponent,
@@ -237,7 +237,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
 
     def get_bi_decoder_options(self) -> Optional[CxlBIDecoderCapabilityStructureOptions]:
         options = CxlBIDecoderCapabilityStructureOptions()
-        options["capability_options"] = CXLBIDecoderCapabilityRegisterOptions(hdm_d_compatible=0)
+        options["capability_options"] = CxlBIDecoderCapabilityRegisterOptions(hdm_d_compatible=0)
         options["control_options"] = CxlBIDecoderControlRegisterOptions(
             bi_enable=1,
             bi_decoder_commit=0,
@@ -245,7 +245,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
         options["status_options"] = CxlBIDecoderStatusRegisterOptions(
             bi_decoder_committed=0,
             bi_decoder_error_not_committed=0,
-            bi_decoder_commit_timeout_base=CacheBITimeoutScale._100_mS,
+            bi_decoder_commit_timeout_base=CxlBITimeoutScale._100_mS,
             bi_decoder_commit_timeout_scale=1,
         )
         options["device_type"] = self.get_component_type()

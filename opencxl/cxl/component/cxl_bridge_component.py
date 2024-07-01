@@ -11,10 +11,10 @@ from opencxl.cxl.component.cxl_component import CxlComponent
 from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.bi_decoder import (
     CxlBIDecoderCapabilityStructureOptions,
-    CXLBIDecoderCapabilityRegisterOptions,
+    CxlBIDecoderCapabilityRegisterOptions,
     CxlBIDecoderControlRegisterOptions,
     CxlBIDecoderStatusRegisterOptions,
-    CacheBITimeoutScale,
+    CxlBITimeoutScale,
 )
 from opencxl.cxl.component.hdm_decoder import (
     HdmDecoderManagerBase,
@@ -58,7 +58,7 @@ class CxlUpstreamPortComponent(CxlComponent):
 
     def get_bi_decoder_options(self) -> Optional[CxlBIDecoderCapabilityStructureOptions]:
         options = CxlBIDecoderCapabilityStructureOptions()
-        options["capability_options"] = CXLBIDecoderCapabilityRegisterOptions(
+        options["capability_options"] = CxlBIDecoderCapabilityRegisterOptions(
             explicit_bi_decoder_commit_required=1
         )
         options["control_options"] = CxlBIDecoderControlRegisterOptions(
@@ -69,7 +69,7 @@ class CxlUpstreamPortComponent(CxlComponent):
         options["status_options"] = CxlBIDecoderStatusRegisterOptions(
             bi_decoder_committed=0,
             bi_decoder_error_not_committed=0,
-            bi_decoder_commit_timeout_base=CacheBITimeoutScale._100_mS,
+            bi_decoder_commit_timeout_base=CxlBITimeoutScale._100_mS,
             bi_decoder_commit_timeout_scale=1,
         )
         options["device_type"] = self.get_component_type()
