@@ -631,6 +631,8 @@ class CxlRootPortDevice(RunnableComponent):
                 )
             elif cxl_capability_id == 0x000B:
                 logger.info(self._create_message("Found BI Route Table Capability Header"))
+            elif cxl_capability_id == 0x000B:
+                logger.info(self._create_message("Found BI RT Capability Header"))
             elif cxl_capability_id == 0x000C:
                 logger.info(self._create_message("Found BI Decoder Capability Header"))
 

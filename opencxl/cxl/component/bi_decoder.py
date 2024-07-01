@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from enum import Enum, IntEnum
+from enum import IntEnum
 from typing import TypedDict, Optional
 from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 from opencxl.util.unaligned_bit_structure import (
@@ -130,6 +130,9 @@ class CxlBIRTStatusRegister(BitMaskedBitStructure):
         options: Optional[CxlBIRTCapabilityStructureOptions] = None,
     ):
 
+        explicit_bi_rt_commit_required = options["capability_options"][
+            "explicit_bi_rt_commit_required"
+        ]
         options = options["status_options"]
         bi_rt_committed = options["bi_rt_committed"]
         bi_rt_error_not_committed = options["bi_rt_error_not_committed"]
@@ -137,13 +140,17 @@ class CxlBIRTStatusRegister(BitMaskedBitStructure):
         bi_rt_commit_timeout_base = options["bi_rt_commit_timeout_base"]
         parent_name = parent_name
 
+        bi_rt_commit_attr = (
+            FIELD_ATTR.RESERVED if explicit_bi_rt_commit_required == 0 else FIELD_ATTR.RO
+        )
+
         self._fields = [
-            BitField("bi_rt_committed", 0, 0, FIELD_ATTR.RO, default=bi_rt_committed),
+            BitField("bi_rt_committed", 0, 0, bi_rt_commit_attr, default=bi_rt_committed),
             BitField(
                 "bi_rt_error_not_committed",
                 1,
                 1,
-                FIELD_ATTR.RO,
+                bi_rt_commit_attr,
                 default=bi_rt_error_not_committed,
             ),
             BitField("reserved1", 2, 7, FIELD_ATTR.RESERVED),

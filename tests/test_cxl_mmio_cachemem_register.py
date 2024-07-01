@@ -54,6 +54,7 @@ def test_cxl_capability_header_register():
         "ras": 0x100,
         "link": 0x200,
         "hdm_decoder": 0x400,
+        "bi_route_table": 0x500,
         "bi_decoder": 0x600,
     }
     register = CxlCapabilityHeaderStructure(options=options)
@@ -63,6 +64,8 @@ def test_cxl_capability_header_register():
     assert register.link.cxl_capability_id == 0x0004
     assert hasattr(register, "hdm_decoder")
     assert register.hdm_decoder.cxl_capability_id == 0x0005
+    assert hasattr(register, "bi_route_table")
+    assert register.bi_route_table.cxl_capability_id == 0x000B
     assert hasattr(register, "bi_decoder")
     assert register.bi_decoder.cxl_capability_id == 0x000C
     assert register.header.array_size == len(options.items())
