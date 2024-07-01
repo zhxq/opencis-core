@@ -251,11 +251,10 @@ class CxlBIDecoderCapabilityStructure(BitMaskedBitStructure):
                 CxlBIDecoderStatusRegister,
                 options=options,
             ),
-            ByteField("reserved1", 12, 15, attribute=FIELD_ATTR.RESERVED),
         ]
 
     @staticmethod
     def get_size_from_options(
         options: Optional[CxlBIDecoderCapabilityStructureOptions] = None,
     ):
-        return 0x10
+        return 0x0C
