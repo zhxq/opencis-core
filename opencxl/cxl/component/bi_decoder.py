@@ -99,7 +99,7 @@ class CxlBIRTControlRegister(BitMaskedBitStructure):
         ]
         options = options["control_options"]
         bi_rt_commit = 0
-        if "bi_rt_commit" in options:
+        if "bi_rt_commit" in options and explicit_bi_rt_commit_required:
             bi_rt_commit = options["bi_rt_commit"]
         parent_name = parent_name
 
