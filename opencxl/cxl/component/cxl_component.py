@@ -14,7 +14,10 @@ from opencxl.cxl.config_space.doe.cdat import CDAT_ENTRY
 from opencxl.cxl.features.mailbox import CxlMailbox
 from opencxl.cxl.features.event_manager import EventManager
 from opencxl.cxl.features.log_manager import LogManager
-from opencxl.cxl.component.bi_decoder import CxlBIDecoderCapabilityStructureOptions
+from opencxl.cxl.component.bi_decoder import (
+    CxlBIDecoderCapabilityStructureOptions,
+    CxlBIRTCapabilityStructureOptions,
+)
 from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.hdm_decoder import HdmDecoderManagerBase
 from opencxl.util.component import LabeledComponent
@@ -41,6 +44,9 @@ class CxlComponent(LabeledComponent):
         return None
 
     def get_bi_decoder_options(self) -> Optional[CxlBIDecoderCapabilityStructureOptions]:
+        return None
+
+    def get_bi_rt_options(self) -> Optional[CxlBIRTCapabilityStructureOptions]:
         return None
 
     def get_cdat_entries(self) -> List[CDAT_ENTRY]:

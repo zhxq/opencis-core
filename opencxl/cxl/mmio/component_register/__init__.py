@@ -53,6 +53,8 @@ class CxlComponentRegister(BitMaskedBitStructure):
         cachemem_options["ras"] = True
         if cxl_component.get_bi_decoder_options():
             cachemem_options["bi_decoder"] = cxl_component.get_bi_decoder_options()
+        if cxl_component.get_bi_rt_options():
+            cachemem_options["bi_route_table"] = cxl_component.get_bi_rt_options()
 
         self._fields = [
             ByteField("io", 0x0000, 0x0FFF, attribute=FIELD_ATTR.RESERVED),

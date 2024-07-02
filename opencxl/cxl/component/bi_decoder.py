@@ -16,8 +16,6 @@ from opencxl.util.unaligned_bit_structure import (
     ShareableByteArray,
 )
 
-from opencxl.util.logger import logger
-
 
 class CxlBITimeoutScale(IntEnum):
     _1_uS = 0b0000
@@ -101,7 +99,6 @@ class CxlBIRTControlRegister(BitMaskedBitStructure):
         bi_rt_commit = 0
         if "bi_rt_commit" in options and explicit_bi_rt_commit_required:
             bi_rt_commit = options["bi_rt_commit"]
-        parent_name = parent_name
 
         bi_rt_commit_attr = (
             FIELD_ATTR.RESERVED if explicit_bi_rt_commit_required == 0 else FIELD_ATTR.RW
@@ -138,7 +135,6 @@ class CxlBIRTStatusRegister(BitMaskedBitStructure):
         bi_rt_error_not_committed = options["bi_rt_error_not_committed"]
         bi_rt_commit_timeout_scale = options["bi_rt_commit_timeout_scale"]
         bi_rt_commit_timeout_base = options["bi_rt_commit_timeout_base"]
-        parent_name = parent_name
 
         bi_rt_commit_attr = (
             FIELD_ATTR.RESERVED if explicit_bi_rt_commit_required == 0 else FIELD_ATTR.RO
@@ -321,7 +317,6 @@ class CxlBIDecoderControlRegister(BitMaskedBitStructure):
         bi_forward = options["bi_forward"]
         bi_enable = options["bi_enable"]
         bi_decoder_commit = options["bi_decoder_commit"]
-        parent_name = parent_name
 
         bi_forward_attr = (
             FIELD_ATTR.RESERVED if device_type == CXL_COMPONENT_TYPE.D2 else FIELD_ATTR.RW
@@ -361,7 +356,6 @@ class CxlBIDecoderStatusRegister(BitMaskedBitStructure):
         bi_decoder_error_not_committed = options["bi_decoder_error_not_committed"]
         bi_decoder_commit_timeout_scale = options["bi_decoder_commit_timeout_scale"]
         bi_decoder_commit_timeout_base = options["bi_decoder_commit_timeout_base"]
-        parent_name = parent_name
 
         self._fields = [
             BitField("bi_decoder_committed", 0, 0, FIELD_ATTR.RO, default=bi_decoder_committed),

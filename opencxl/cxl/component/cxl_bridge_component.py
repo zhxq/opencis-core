@@ -14,6 +14,10 @@ from opencxl.cxl.component.bi_decoder import (
     CxlBIDecoderCapabilityRegisterOptions,
     CxlBIDecoderControlRegisterOptions,
     CxlBIDecoderStatusRegisterOptions,
+    CxlBIRTCapabilityStructureOptions,
+    CxlBIRTCapabilityRegisterOptions,
+    CxlBIRTControlRegisterOptions,
+    CxlBIRTStatusRegisterOptions,
     CxlBITimeoutScale,
 )
 from opencxl.cxl.component.hdm_decoder import (
@@ -73,6 +77,20 @@ class CxlUpstreamPortComponent(CxlComponent):
             bi_decoder_commit_timeout_scale=1,
         )
         options["device_type"] = self.get_component_type()
+
+    def get_bi_rt_options(self) -> Optional[CxlBIRTCapabilityStructureOptions]:
+        options = CxlBIRTCapabilityStructureOptions()
+        options["bi_route_table"] = CxlBIRTCapabilityStructureOptions()
+        options["bi_route_table"]["capability_options"] = CxlBIRTCapabilityRegisterOptions(
+            explicit_bi_rt_commit_required=1
+        )
+        options["bi_route_table"]["control_options"] = CxlBIRTControlRegisterOptions(bi_rt_commit=0)
+        options["bi_route_table"]["status_options"] = CxlBIRTStatusRegisterOptions(
+            bi_rt_committed=0,
+            bi_rt_error_not_committed=0,
+            bi_rt_commit_timeout_base=CxlBITimeoutScale._100_mS,
+            bi_rt_commit_timeout_scale=1,
+        )
 
     def set_routing_table(self, routing_table: RoutingTable):
         self._routing_table = routing_table

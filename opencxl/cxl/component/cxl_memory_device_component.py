@@ -236,6 +236,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
         return self._hdm_decoder_manager
 
     def get_bi_decoder_options(self) -> Optional[CxlBIDecoderCapabilityStructureOptions]:
+        # pylint: disable=duplicate-code
         options = CxlBIDecoderCapabilityStructureOptions()
         options["capability_options"] = CxlBIDecoderCapabilityRegisterOptions(hdm_d_compatible=0)
         options["control_options"] = CxlBIDecoderControlRegisterOptions(
