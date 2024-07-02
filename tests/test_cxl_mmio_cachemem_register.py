@@ -332,6 +332,8 @@ def test_cachemem_register_with_options_bi_only():
 
 
 def test_bi_decoder_without_options_only():
+    # pylint: disable=bare-except, unused-variable
+    # Test if Exception will be thrown if options=None, for 100% code coverage
     try:
         register = CxlBIDecoderCapabilityStructure(options=None)
     except:
@@ -339,6 +341,7 @@ def test_bi_decoder_without_options_only():
 
 
 def test_bi_rt_without_options_only():
+    # pylint: disable=bare-except, unused-variable
     try:
         register = CxlBIRTCapabilityStructure(options=None)
     except:
