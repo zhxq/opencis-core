@@ -252,7 +252,7 @@ def test_cachemem_register_with_options_bi_decoder_only():
     options["bi_decoder"]["status_options"] = CxlBIDecoderStatusRegisterOptions(
         bi_decoder_committed=0,
         bi_decoder_error_not_committed=0,
-        bi_decoder_commit_timeout_base=CxlBITimeoutScale._100_mS,
+        bi_decoder_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
         bi_decoder_commit_timeout_scale=1,
     )
     options["bi_decoder"]["device_type"] = CXL_COMPONENT_TYPE.LD
@@ -277,7 +277,7 @@ def test_cachemem_register_with_options_bi_rt_only():
     options["bi_route_table"]["status_options"] = CxlBIRTStatusRegisterOptions(
         bi_rt_committed=0,
         bi_rt_error_not_committed=0,
-        bi_rt_commit_timeout_base=CxlBITimeoutScale._100_mS,
+        bi_rt_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
         bi_rt_commit_timeout_scale=1,
     )
 
@@ -304,7 +304,7 @@ def test_cachemem_register_with_options_bi_only():
     options["bi_decoder"]["status_options"] = CxlBIDecoderStatusRegisterOptions(
         bi_decoder_committed=0,
         bi_decoder_error_not_committed=0,
-        bi_decoder_commit_timeout_base=CxlBITimeoutScale._100_mS,
+        bi_decoder_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
         bi_decoder_commit_timeout_scale=1,
     )
     options["bi_decoder"]["device_type"] = CXL_COMPONENT_TYPE.LD
@@ -317,7 +317,7 @@ def test_cachemem_register_with_options_bi_only():
     options["bi_route_table"]["status_options"] = CxlBIRTStatusRegisterOptions(
         bi_rt_committed=0,
         bi_rt_error_not_committed=0,
-        bi_rt_commit_timeout_base=CxlBITimeoutScale._100_mS,
+        bi_rt_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
         bi_rt_commit_timeout_scale=1,
     )
 
@@ -376,7 +376,7 @@ def test_cachemem_register_with_options_all():
     options["bi_decoder"]["status_options"] = CxlBIDecoderStatusRegisterOptions(
         bi_decoder_committed=0,
         bi_decoder_error_not_committed=0,
-        bi_decoder_commit_timeout_base=CxlBITimeoutScale._100_mS,
+        bi_decoder_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
         bi_decoder_commit_timeout_scale=1,
     )
     options["bi_decoder"]["device_type"] = CXL_COMPONENT_TYPE.LD
@@ -388,7 +388,7 @@ def test_cachemem_register_with_options_all():
     options["bi_route_table"]["status_options"] = CxlBIRTStatusRegisterOptions(
         bi_rt_committed=0,
         bi_rt_error_not_committed=0,
-        bi_rt_commit_timeout_base=CxlBITimeoutScale._100_mS,
+        bi_rt_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
         bi_rt_commit_timeout_scale=1,
     )
     register = CxlCacheMemRegister(options=options)

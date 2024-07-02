@@ -5,6 +5,7 @@
  See LICENSE for details.
 """
 
+# pylint: disable=duplicate-code
 from enum import IntEnum
 from typing import TypedDict, Optional
 from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
@@ -18,14 +19,14 @@ from opencxl.util.unaligned_bit_structure import (
 
 
 class CxlBITimeoutScale(IntEnum):
-    _1_uS = 0b0000
-    _10_uS = 0b0001
-    _100_uS = 0b0010
-    _1_mS = 0b0011
-    _10_mS = 0b0100
-    _100_mS = 0b0101
-    _1_S = 0b0110
-    _10_S = 0b0111
+    one_us = 0b0000
+    ten_us = 0b0001
+    hundred_us = 0b0010
+    one_ms = 0b0011
+    ten_ms = 0b0100
+    hundred_ms = 0b0101
+    one_s = 0b0110
+    ten_s = 0b0111
 
 
 # BI Route Table
@@ -261,9 +262,9 @@ class CxlBIDecoderCapabilityRegister(BitMaskedBitStructure):
         hdm_d_compatible = 0
         explicit_bi_decoder_commit_required = 0
 
-        if device_type != CXL_COMPONENT_TYPE.DSP and device_type != CXL_COMPONENT_TYPE.R:
+        if device_type not in (CXL_COMPONENT_TYPE.DSP, CXL_COMPONENT_TYPE.R):
             hdm_d_compatible = options["hdm_d_compatible"]
-        if device_type != CXL_COMPONENT_TYPE.D2 and device_type != CXL_COMPONENT_TYPE.R:
+        if device_type not in (CXL_COMPONENT_TYPE.D2, CXL_COMPONENT_TYPE.R):
             explicit_bi_decoder_commit_required = options["explicit_bi_decoder_commit_required"]
         self._fields = [
             BitField(
@@ -272,7 +273,7 @@ class CxlBIDecoderCapabilityRegister(BitMaskedBitStructure):
                 0,
                 (
                     FIELD_ATTR.RESERVED
-                    if device_type == CXL_COMPONENT_TYPE.DSP or device_type == CXL_COMPONENT_TYPE.R
+                    if device_type in (CXL_COMPONENT_TYPE.DSP, CXL_COMPONENT_TYPE.R)
                     else FIELD_ATTR.HW_INIT
                 ),
                 default=hdm_d_compatible,
@@ -283,7 +284,7 @@ class CxlBIDecoderCapabilityRegister(BitMaskedBitStructure):
                 1,
                 (
                     FIELD_ATTR.RESERVED
-                    if device_type == CXL_COMPONENT_TYPE.D2 or device_type == CXL_COMPONENT_TYPE.R
+                    if device_type in (CXL_COMPONENT_TYPE.D2, CXL_COMPONENT_TYPE.R)
                     else FIELD_ATTR.HW_INIT
                 ),
                 default=explicit_bi_decoder_commit_required,

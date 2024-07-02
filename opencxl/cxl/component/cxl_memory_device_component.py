@@ -246,7 +246,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
         options["status_options"] = CxlBIDecoderStatusRegisterOptions(
             bi_decoder_committed=0,
             bi_decoder_error_not_committed=0,
-            bi_decoder_commit_timeout_base=CxlBITimeoutScale._100_mS,
+            bi_decoder_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
             bi_decoder_commit_timeout_scale=1,
         )
         options["device_type"] = self.get_component_type()

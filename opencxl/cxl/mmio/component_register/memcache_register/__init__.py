@@ -13,6 +13,12 @@ from opencxl.util.unaligned_bit_structure import (
     ByteField,
     FIELD_ATTR,
 )
+from opencxl.cxl.component.bi_decoder import (
+    CxlBIDecoderCapabilityStructure,
+    CxlBIDecoderCapabilityStructureOptions,
+    CxlBIRTCapabilityStructure,
+    CxlBIRTCapabilityStructureOptions,
+)
 from .capability import (
     CxlCapabilityHeaderStructure,
     CxlCapabilityHeaderStructureOptions,
@@ -23,12 +29,6 @@ from .hdm_decoder_capability import (
 )
 from .link_capability import CxlLinkCapabilityStructure
 from .ras_capability import CxlRasCapabilityStructure
-from opencxl.cxl.component.bi_decoder import (
-    CxlBIDecoderCapabilityStructure,
-    CxlBIDecoderCapabilityStructureOptions,
-    CxlBIRTCapabilityStructure,
-    CxlBIRTCapabilityStructureOptions,
-)
 
 
 class CxlCacheMemRegisterOptions(TypedDict):
