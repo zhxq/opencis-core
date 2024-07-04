@@ -1445,7 +1445,7 @@ class CxlMemS2MBISnpHeader(UnalignedBitStructure):
     opcode: CXL_MEM_S2MBISNP_OPCODE
     bi_id: int
     bi_tag: int
-    low_addr: int
+    addr: int
     rsvd: int
     _fields = [
         BitField("valid", 0, 0),
@@ -1472,6 +1472,9 @@ class CxlMemS2MBISnpPacket(CxlMemBasePacket):
             CxlMemS2MBISnpHeader,
         ),
     ]
+
+    def get_address(self):
+        return self.s2mbisnp_header.addr
 
 
 # CXL.mem S2M No Data Response (NDR)

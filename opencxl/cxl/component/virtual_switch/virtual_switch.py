@@ -104,10 +104,10 @@ class CxlVirtualSwitch(RunnableComponent):
 
         # NOTE: Make Routers
         self._cxl_io_router = CxlIoRouter(
-            self._id, self._routing_table, self._usp_connection, self._vppb_connections
+            self._id, self._routing_table, self._usp_device, self._port_binder
         )
         self._cxl_mem_router = CxlMemRouter(
-            self._id, self._routing_table, self._usp_connection, self._vppb_connections
+            self._id, self._routing_table, self._usp_device, self._port_binder
         )
 
     def _create_message(self, message: str):
