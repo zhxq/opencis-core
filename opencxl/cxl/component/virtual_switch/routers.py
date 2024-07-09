@@ -13,10 +13,10 @@ from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.util.pci import bdf_to_string
 from opencxl.util.number import tlptoh16
-from opencxl.cxl.component.cxl_connection import CxlConnection, FifoPair
+from opencxl.cxl.component.cxl_connection import FifoPair
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
-from opencxl.cxl.component.virtual_switch.port_binder import BIND_STATUS, PortBinder, BindSlot
+from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BindSlot
 from opencxl.cxl.transport.transaction import (
     BasePacket,
     CxlIoBasePacket,
@@ -57,7 +57,7 @@ class CxlRouter(RunnableComponent):
         pass
 
     @abstractmethod
-    async def _process_target_to_host_packets(self, downstream_connection_bind_slots: BindSlot):
+    async def _process_target_to_host_packets(self, downstream_connection_bind_slot: BindSlot):
         pass
 
     async def _run(self):
@@ -302,8 +302,7 @@ class CxlMemRouter(CxlRouter):
                 cxl_mem_bi_packet: CxlMemM2SBiRspPacket = cast(
                     CxlMemM2SBiRspPacket, cxl_mem_base_packet
                 )
-                for i in range(len(self._downstream_connections)):
-                    bind_slot = self._downstream_connections[i]
+                for i, bind_slot in enumerate(self._downstream_connections):
                     dsp_device = bind_slot.dsp
                     bus = dsp_device.get_secondary_bus_number()
                     if bus == cxl_mem_bi_packet.m2sbirsp_header.bi_id:
@@ -341,9 +340,9 @@ class CxlMemRouter(CxlRouter):
                 bi_id = dsp_device.get_secondary_bus_number()
                 bi_decoder_options = dsp_component.get_bi_decoder_options()
 
-                if self._bi_enable_override_for_test == None:
+                if self._bi_enable_override_for_test is None:
                     bi_enable = bi_decoder_options["control_options"]["bi_enable"]
-                if self._bi_forward_override_for_test == None:
+                if self._bi_forward_override_for_test is None:
                     bi_forward = bi_decoder_options["control_options"]["bi_forward"]
 
                 cxl_mem_bi_packet: CxlMemS2MBiSnpPacket = cast(
@@ -351,7 +350,8 @@ class CxlMemRouter(CxlRouter):
                 )
                 if bi_enable == bi_forward:
                     continue
-                elif bi_enable == 0 and bi_forward == 1:
+
+                if bi_enable == 0 and bi_forward == 1:
                     await self._upstream_connection_fifo.target_to_host.put(packet)
                 elif bi_enable == 1 and bi_forward == 0:
                     hdm_decoder_manager = usp_component.get_hdm_decoder_manager()

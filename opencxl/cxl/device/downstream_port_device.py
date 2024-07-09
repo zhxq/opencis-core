@@ -79,6 +79,7 @@ class DownstreamPortDevice(CxlPortDevice):
         self._is_dummy = dummy_config is not None
         self._pci_bridge_component = None
         self._pci_registers = None
+        self._cxl_component = None
         self._upstream_connection = CxlConnection()
 
         self._cxl_io_manager = CxlIoManager(
