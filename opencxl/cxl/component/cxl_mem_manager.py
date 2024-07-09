@@ -130,7 +130,7 @@ class CxlMemManager(PacketProcessor):
                     )
                 else:
                     raise Exception(
-                        f"Unsupported BIRsp packet, tag id: {m2sbirsp_packet.m2sbirsp_header.bi_tag}"
+                        f"Unsupported BIRsp packet, tag: {m2sbirsp_packet.m2sbirsp_header.bi_tag}"
                     )
             else:
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
