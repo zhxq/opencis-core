@@ -8,7 +8,7 @@
 from asyncio import gather, create_task
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import List, cast, Callable, Coroutine, Any
+from typing import List, Optional, cast, Callable, Coroutine, Any
 
 from opencxl.util.logger import logger
 from opencxl.cxl.component.cxl_connection import CxlConnection
@@ -54,6 +54,8 @@ class CxlVirtualSwitch(RunnableComponent):
         vppb_counts: int,
         initial_bounds: List[int],
         physical_ports: List[CxlPortDevice],
+        bi_enable_override_for_test: Optional[int] = None,
+        bi_forward_override_for_test: Optional[int] = None,
     ):
         super().__init__()
         self._id = id
@@ -62,6 +64,8 @@ class CxlVirtualSwitch(RunnableComponent):
         self._physical_ports = physical_ports
         self._routing_table = RoutingTable(vppb_counts, label=f"VCS{id}")
         self._event_handler = None
+        self._bi_enable_override_for_test = bi_enable_override_for_test
+        self._bi_forward_override_for_test = bi_forward_override_for_test
 
         if len(initial_bounds) != self._vppb_counts:
             raise Exception("length of initial_bounds and vppb_count must be the same")
@@ -107,7 +111,12 @@ class CxlVirtualSwitch(RunnableComponent):
             self._id, self._routing_table, self._usp_device, self._port_binder
         )
         self._cxl_mem_router = CxlMemRouter(
-            self._id, self._routing_table, self._usp_device, self._port_binder
+            self._id,
+            self._routing_table,
+            self._usp_device,
+            self._port_binder,
+            self._bi_enable_override_for_test,
+            self._bi_forward_override_for_test,
         )
 
     def _create_message(self, message: str):
