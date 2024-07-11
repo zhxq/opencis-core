@@ -42,6 +42,9 @@ class CxlCacheManager(PacketProcessor):
 
         super().__init__(upstream_fifo, downstream_fifo, label)
 
+    def set_memory_device_component(self, cache_device_component: CxlCacheDeviceComponent):
+        self._cache_device_component = cache_device_component
+
     async def send_d2h_req_test(self):
         # Test func 1: Sending D2H Req
         # Addr must be aligned to 0x40
