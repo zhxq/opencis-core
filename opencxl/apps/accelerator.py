@@ -44,7 +44,7 @@ class MyType1Accelerator(RunnableComponent):
         self._cxl_type1_device = CxlType1Device(
             CxlType1DeviceConfig(
                 transport_connection=self._sw_conn_client.get_cxl_connection(),
-                label=label,
+                device_name=label,
             )
         )
 
