@@ -15,7 +15,6 @@ from opencxl.cxl.device.cxl_type1_device import (
 )
 from opencxl.cxl.device.root_port_device import CxlRootPortDevice
 from opencxl.cxl.component.cxl_connection import CxlConnection
-from opencxl.util.number_const import MB
 
 
 def test_type1_device():
