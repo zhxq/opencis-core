@@ -58,23 +58,25 @@ from opencxl.pci.component.config_space_manager import (
 class CxlType1DeviceConfig:
     device_name: str
     transport_connection: CxlConnection
+    cache_line_count: int = 64
 
 
 class CxlType1Device(RunnableComponent):
     def __init__(
         self,
         config: CxlType1DeviceConfig,
-        label: Optional[str] = None,
     ):
         self._label = lambda class_name: f"{config.device_name}:{class_name}"
-        super().__init__(label)
+        super().__init__(self._label)
 
         processor_to_cache_fifo = MemoryFifoPair()
         cache_to_coh_agent_fifo = CacheFifoPair()
         coh_agent_to_cache_fifo = CacheFifoPair()
 
+        self._memory_size = 0
         self._cxl_cache_device_component = None
         self._upstream_connection = config.transport_connection
+        self._cache_line_count = config.cache_line_count
         self._cxl_io_manager = CxlIoManager(
             self._upstream_connection.mmio_fifo,
             None,
@@ -90,10 +92,8 @@ class CxlType1Device(RunnableComponent):
             label=self._label,
         )
 
-        self._memory_size = 0
-
-        # TODO: Update CxlCacheManager with a CxlCacheDeviceComponent
-        self._cxl_cache_manager.set_cache_device_component(self._cxl_cache_device_component)
+        # Update CxlCacheManager with a CxlCacheDeviceComponent
+        self._cxl_cache_manager.set_memory_device_component(self._cxl_cache_device_component)
 
         cache_controller_config = CacheControllerConfig(
             component_name=config.device_name,
@@ -136,6 +136,7 @@ class CxlType1Device(RunnableComponent):
             decoder_count=0,
             memory_file="",
             label=self._label,
+            cache_lines=self._cache_line_count,
         )
 
         # Create CombinedMmioRegister
@@ -164,7 +165,7 @@ class CxlType1Device(RunnableComponent):
                     cache_size=1,
                 ),
                 # TODO: Use a real range instead of the placeholder range
-                cacheable_address_range=DvsecCxlCacheableRangeOptions(0x0, 0xFFFFFFFF0000),
+                cacheable_address_range=DvsecCxlCacheableRangeOptions(0x0, 0x0000),
             ),
             doe=CxlDoeExtendedCapabilityOptions(
                 cdat_entries=self._cxl_memory_device_component.get_cdat_entries()
@@ -188,13 +189,13 @@ class CxlType1Device(RunnableComponent):
         # pylint: disable=duplicate-code
         run_tasks = [
             create_task(self._cxl_io_manager.run()),
-            create_task(self._cxl_mem_dcoh.run()),
+            create_task(self._cxl_cache_manager.run()),
             create_task(self._cache_controller.run()),
             create_task(self._device_simple_processor.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_manager.wait_for_ready()),
-            create_task(self._cxl_mem_dcoh.wait_for_ready()),
+            create_task(self._cxl_cache_manager.wait_for_ready()),
             create_task(self._cache_controller.wait_for_ready()),
             create_task(self._device_simple_processor.wait_for_ready()),
         ]
@@ -206,7 +207,7 @@ class CxlType1Device(RunnableComponent):
         # pylint: disable=duplicate-code
         tasks = [
             create_task(self._cxl_io_manager.stop()),
-            create_task(self._cxl_mem_dcoh.stop()),
+            create_task(self._cxl_cache_manager.stop()),
             create_task(self._cache_controller.stop()),
             create_task(self._device_simple_processor.stop()),
         ]

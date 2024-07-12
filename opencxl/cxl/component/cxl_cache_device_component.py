@@ -35,18 +35,11 @@ from opencxl.cxl.cci.generic.logs import GetLog, GetSupportedLogs
 from opencxl.cxl.cci.memory_device.identify_memory_device import (
     IdentifyMemoryDevice,
 )
-from opencxl.cxl.component.bi_decoder import (
-    CxlBIDecoderCapabilityStructureOptions,
-    CxlBIDecoderCapabilityRegisterOptions,
-    CxlBIDecoderControlRegisterOptions,
-    CxlBIDecoderStatusRegisterOptions,
-    CxlBITimeoutScale,
-)
 from opencxl.cxl.component.cxl_component import (
     CxlDeviceComponent,
+    CXL_COMPONENT_TYPE,
     CXL_DEVICE_CAPABILITY_TYPE,
 )
-from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.hdm_decoder import (
     DeviceHdmDecoderManager,
     HdmDecoderManagerBase,
@@ -192,19 +185,15 @@ class CXLCacheCacheLineInfo:
         return self.data
 
 
-class CxlMemoryDeviceComponent(CxlDeviceComponent):
+class CxlCacheDeviceComponent(CxlDeviceComponent):
     def __init__(
         self,
-        identity: MemoryDeviceIdentity,
         decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_1,
-        memory_file: str = "mem.bin",
         label: Optional[str] = None,
-        cache_lines=0,
     ):
         super().__init__(label)
         self._event_manager = EventManager()
         self._log_manager = LogManager()
-        self._identity = identity
         primary_mailbox_capabilities = MailboxCapabilities(
             payload_size=MIN_PAYLOAD_SIZE,
             mb_doorbell_interrupt_capable=0,
@@ -220,7 +209,6 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             SetEventInterruptPolicy(self._event_manager),
             GetLog(self._log_manager),
             GetSupportedLogs(self._log_manager),
-            IdentifyMemoryDevice(self._identity),
         ]
         self._primary_mailbox = CxlMailbox(
             capabilities=primary_mailbox_capabilities, commands=primary_mailbox_commands
@@ -237,21 +225,10 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             uio_capable=0,
             uio_capable_decoder_count=0,
             mem_data_nxm_capable=0,
-            bi_capable=True,
         )
         self._hdm_decoder_manager = DeviceHdmDecoderManager(hdm_decoder_capabilities, label=label)
-        if "/dev" in memory_file:
-            self._memory_accessor = CharDriverAccessor(
-                memory_file, self._identity.get_total_capacity()
-            )
-        elif memory_file == "":
-            self._memory_accessor = None
-        else:
-            self._memory_accessor = FileAccessor(memory_file, self._identity.get_total_capacity())
-
         self._cache_info: List[CXLCacheCacheLineInfo] = []
-        self._cache_lines = cache_lines
-        for i in range(self._cache_lines):
+        for i in range(64):
             self._cache_info.append(
                 CXLCacheCacheLineInfo(
                     cache_id=i,
@@ -265,26 +242,9 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
     def get_hdm_decoder_manager(self) -> Optional[HdmDecoderManagerBase]:
         return self._hdm_decoder_manager
 
-    def get_bi_decoder_options(self) -> Optional[CxlBIDecoderCapabilityStructureOptions]:
-        # pylint: disable=duplicate-code
-        options = CxlBIDecoderCapabilityStructureOptions()
-        options["capability_options"] = CxlBIDecoderCapabilityRegisterOptions(hdm_d_compatible=0)
-        options["control_options"] = CxlBIDecoderControlRegisterOptions(
-            bi_enable=1,
-            bi_decoder_commit=0,
-        )
-        options["status_options"] = CxlBIDecoderStatusRegisterOptions(
-            bi_decoder_committed=0,
-            bi_decoder_error_not_committed=0,
-            bi_decoder_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
-            bi_decoder_commit_timeout_scale=1,
-        )
-        options["device_type"] = self.get_component_type()
-        return options
-
     def get_cdat_entries(self) -> List[CDAT_ENTRY]:
         dsmas = DeviceScopedMemoryAffinity()
-        dsmas.dpa_length = self._identity.get_total_capacity()
+        dsmas.dpa_length = 0
 
         dslbis0 = DeviceScropedLatencyBandwidthInformation()
         dslbis0.flags = HMAT_SLLB_FLAG.MEMORY
@@ -311,13 +271,13 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
         dslbis3.entry0 = 16
 
         dsemts = DeviceScopedEfiMemoryType()
-        dsemts.dpa_length = self._identity.get_total_capacity()
+        dsemts.dpa_length = 0
 
         entries = [dsmas, dslbis0, dslbis1, dslbis2, dslbis3, dsemts]
         return entries
 
     def get_component_type(self) -> CXL_COMPONENT_TYPE:
-        return CXL_COMPONENT_TYPE.D2
+        return CXL_COMPONENT_TYPE.LD
 
     def get_capability_type(self) -> CXL_DEVICE_CAPABILITY_TYPE:
         return CXL_DEVICE_CAPABILITY_TYPE.MEMORY_DEVICE
@@ -337,37 +297,6 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             reset_needed=RESET_REQUEST.NOT_NEEDED,
         )
         return status
-
-    def get_identity(self) -> MemoryDeviceIdentity:
-        return self._identity
-
-    async def write_mem(self, hpa: int, data: int, size: int = 64):
-        dpa = self._hdm_decoder_manager.get_dpa(hpa)
-        if dpa is None:
-            logger.warning(self._create_message("HPA 0x{hpa} is not decodable"))
-            return
-        await self._memory_accessor.write(dpa, data, size)
-
-    async def read_mem(self, hpa: int, size: int = 64) -> int:
-        dpa = self._hdm_decoder_manager.get_dpa(hpa)
-        if dpa is None:
-            logger.warning(self._create_message("HPA 0x{hpa} is not decodable"))
-            return 0
-        return await self._memory_accessor.read(dpa, size)
-
-    async def write_mem(self, hpa: int, data: int, size: int = 64):
-        dpa = self._hdm_decoder_manager.get_dpa(hpa)
-        if dpa is None:
-            logger.warning(self._create_message("HPA 0x{hpa} is not decodable"))
-            return
-        await self._memory_accessor.write(dpa, data, size)
-
-    async def read_mem(self, hpa: int, size: int = 64) -> int:
-        dpa = self._hdm_decoder_manager.get_dpa(hpa)
-        if dpa is None:
-            logger.warning(self._create_message("HPA 0x{hpa} is not decodable"))
-            return 0
-        return await self._memory_accessor.read(dpa, size)
 
     async def write_cache(self, cache_id: int, data: int, size: int = 64):
         self._cache_info[cache_id].write(data)
