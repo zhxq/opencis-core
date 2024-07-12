@@ -35,9 +35,9 @@ async def test_type1_device_run_stop(get_gold_std_reg_vals):
     device = CxlType1Device(device_config)
 
     # check register values after initialization
-    # reg_vals = str(device.get_reg_vals())
-    # reg_vals_expected = get_gold_std_reg_vals("ACCEL_TYPE_1")
-    # assert reg_vals == reg_vals_expected
+    reg_vals = str(device.get_reg_vals())
+    reg_vals_expected = get_gold_std_reg_vals("ACCEL_TYPE_1")
+    assert reg_vals == reg_vals_expected
 
     async def wait_and_stop():
         await device.wait_for_ready()
