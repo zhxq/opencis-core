@@ -87,6 +87,8 @@ class CxlType1Device(RunnableComponent):
             label=self._label,
         )
 
+        self._cxl_memory_device_component = None
+
         self._cxl_cache_manager = CxlCacheManager(
             upstream_fifo=self._upstream_connection.cxl_cache_fifo,
             label=self._label,

@@ -40,6 +40,7 @@ class CxlCacheManager(PacketProcessor):
     ):
         self._downstream_fifo: Optional[FifoPair]
         self._upstream_fifo: FifoPair
+        self._cache_device_component = None
 
         super().__init__(upstream_fifo, downstream_fifo, label)
 
