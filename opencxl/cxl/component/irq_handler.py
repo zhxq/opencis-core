@@ -1,7 +1,22 @@
-from asyncio import Event, StreamReader, StreamWriter, create_task, start_server, open_connection
+"""
+ Copyright (c) 2024, Eeum, Inc.
+
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
+"""
+
+from asyncio import (
+    Event,
+    StreamReader,
+    StreamWriter,
+    Task,
+    create_task,
+    start_server,
+    open_connection,
+)
 from asyncio.exceptions import CancelledError
-from enum import Enum, auto
-from typing import ByteString, Callable
+from enum import Enum
+from typing import Callable
 
 from opencxl.util.component import RunnableComponent
 from opencxl.util.logger import logger
@@ -33,11 +48,12 @@ class IrqHandler(RunnableComponent):
         client_target_addr="localhost",
         client_target_port=9100,
     ):
-        self._label = f"{device_name}:IrqHandler"
+        super().__init__(f"{device_name}:IrqHandler")
         self._server_bind_addr = server_bind_addr
         self._server_bind_port = server_bind_port
         self._client_target_addr = client_target_addr
         self._client_target_port = client_target_port
+        self._server_task: Task = None
         self._callbacks = []
 
     def register_interrupt_handler(self, irq_msg: Irq, irq_recv_cb: Callable):
@@ -55,6 +71,7 @@ class IrqHandler(RunnableComponent):
         self._msg_to_interrupt_event[irq_msg] = ev
 
     async def _irq_handler(self, reader: StreamReader, writer: StreamWriter):
+        # pylint: disable=unused-argument
         msg = reader.read(IRQ_WIDTH)
         if not msg:
             logger.debug(self._create_message("Irq enable connection broken"))
@@ -86,3 +103,6 @@ class IrqHandler(RunnableComponent):
             await self._server_task
         except CancelledError:
             logger.info(self._create_message("Irq enable listener stopped"))
+
+    async def _stop(self):
+        self._server_task.cancel()

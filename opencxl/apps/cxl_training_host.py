@@ -5,12 +5,13 @@
  See LICENSE for details.
 """
 
+# pylint: disable=duplicate-code
 import asyncio
 import glob
 from dataclasses import dataclass, field
 import os
 from typing import Optional, List
-from random import randrange, sample
+from random import sample
 from queue import Queue
 
 from opencxl.util.logger import logger
@@ -19,7 +20,6 @@ from opencxl.cxl.transport.memory_fifo import (
     MemoryRequest,
     MemoryResponse,
     MEMORY_REQUEST_TYPE,
-    MEMORY_RESPONSE_STATUS,
 )
 
 from opencxl.util.component import RunnableComponent
@@ -44,7 +44,6 @@ from opencxl.cxl.component.root_complex.root_port_switch import (
     ROOT_PORT_SWITCH_TYPE,
 )
 from opencxl.cxl.component.root_complex.home_agent import MemoryRange
-from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
 from opencxl.cxl.transport.cache_fifo import CacheFifoPair
 
 
@@ -119,7 +118,7 @@ class HostTrainIoGen(RunnableComponent):
         self._total_samples = len(categories) * self._sample_from_each_category
 
         for c in categories:
-            category_pics = glob.glob(c + f"/*.JPEG")
+            category_pics = glob.glob(f"{c}/*.JPEG")
             sample_pics = sample(category_pics, self._sample_from_each_category)
             category_name = c.split(os.path.sep)[-1]
             self._sampled_file_categories += [category_name] * self._sample_from_each_category
@@ -145,14 +144,15 @@ class HostTrainIoGen(RunnableComponent):
                 real_category = self._sampled_file_categories[i]
                 validated_category = self._validation_results.get()
                 print(
-                    f"Picture {i}: Real category: {real_category}, validated category: {validated_category}"
+                    f"Picture {i} category: Real: {real_category}, validated: {validated_category}"
                 )
                 if real_category == validated_category:
                     correct += 1
 
             print("Sampled validation results:")
             print(
-                f"Correct/Total: {correct}/{self._total_samples} ({correct/self._total_samples:.2f}%)"
+                f"Correct/Total: {correct}/{self._total_samples} "
+                f"({correct/self._total_samples:.2f}%)"
             )
 
     async def _run(self):
@@ -188,7 +188,11 @@ class CxlTrainingHost(RunnableComponent):
         cache_to_coh_bridge_fifo = CacheFifoPair()
         coh_bridge_to_cache_fifo = CacheFifoPair()
 
-        self._irq_handler = IrqHandler(server_bind_port=9000, client_target_port=9100)
+        self._irq_handler = IrqHandler(
+            device_name=self._label,
+            server_bind_port=9000,
+            client_target_port=9100,
+        )
 
         # Create Root Port Client Manager
         root_port_client_manager_config = RootPortClientManagerConfig(
