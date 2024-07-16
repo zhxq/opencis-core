@@ -145,7 +145,7 @@ class HostTrainIoGen(RunnableComponent):
                             Irq.ACCEL_VALIDATION_FINISHED,
                             self._save_validation_result(dev, category_name, pic_count),
                         )
-                        await self._irq_handler.send_irq_request(dev, Irq.HOST_SENT)
+                        await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev)
                         # Currently we don't send the picture information to the device
                         # and to prevent race condition, we need to send pics synchronously
                         self._lock.acquire()
@@ -169,7 +169,7 @@ class HostTrainIoGen(RunnableComponent):
                 Irq.ACCEL_TRAINING_FINISHED, self._host_process_validation
             )
 
-            await self._irq_handler.send_irq_request(dev, Irq.HOST_READY)
+            await self._irq_handler.send_irq_request(Irq.HOST_READY, dev)
 
     def _save_validation_result(self, device, real_category, pic_count: int):
         def _func():

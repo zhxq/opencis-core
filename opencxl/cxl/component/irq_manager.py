@@ -92,7 +92,7 @@ class IrqManager(RunnableComponent):
         )
         return server
 
-    async def send_irq_request(self, device: int, request: Irq):
+    async def send_irq_request(self, request: Irq, device: int):
         """
         Sends an IRQ request as the client.
         """
