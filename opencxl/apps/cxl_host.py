@@ -129,6 +129,9 @@ class CxlHost(RunnableComponent):
             tasks.append(asyncio.create_task(self._host_manager_conn_client.stop()))
         await asyncio.gather(*tasks)
 
+    def get_hpa_base(self) -> int:
+        return self._root_port_device.get_hpa_base()
+
 
 class CxlHostManager(RunnableComponent):
     def __init__(

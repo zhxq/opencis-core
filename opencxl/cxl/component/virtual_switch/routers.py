@@ -336,6 +336,7 @@ class CxlMemRouter(CxlRouter):
                 break
             cxl_mem_base_packet: CxlMemBasePacket = cast(CxlMemBasePacket, packet)
             if cxl_mem_base_packet.is_s2mbisnp():
+                print("ARE THEY HERE?")
                 # NOTE: Following vars might be uninitialized before while
                 bi_id = dsp_device.get_secondary_bus_number()
                 bi_decoder_options = dsp_component.get_bi_decoder_options()
@@ -349,16 +350,22 @@ class CxlMemRouter(CxlRouter):
                     CxlMemS2MBISnpPacket, cxl_mem_base_packet
                 )
                 if bi_enable == bi_forward:
+                    print("HERE 1")
                     continue
 
                 if bi_enable == 0 and bi_forward == 1:
+                    print("HERE 2")
                     await self._upstream_connection_fifo.target_to_host.put(packet)
                 elif bi_enable == 1 and bi_forward == 0:
+                    print("HERE 3")
                     hdm_decoder_manager = usp_component.get_hdm_decoder_manager()
                     if hdm_decoder_manager.is_bi_capable():
+                        print("HERE 4")
                         cxl_mem_bi_packet.s2mbisnp_header.bi_id = bi_id
-                        await self._upstream_connection_fifo.target_to_host.put(packet)
+                        await self._upstream_connection_fifo.target_to_host.put(cxl_mem_bi_packet)
                     else:
+                        print("HERE 5")
                         continue
             else:
+                print("HERE 6")
                 await self._upstream_connection_fifo.target_to_host.put(packet)

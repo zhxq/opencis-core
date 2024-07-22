@@ -225,7 +225,7 @@ class CxlType2Device(RunnableComponent):
             cache_data_packet = cast(CxlCacheH2DDataPacket, packet)
             return cache_data_packet.data
         except TimeoutError:
-            logger.error(self._create_message("CXL.mem Read: Timed-out"))
+            logger.error(self._create_message("CXL.cache Read: Timed-out"))
             return None
 
     async def cxl_cache_writeline(self, hpa: int, data: int):

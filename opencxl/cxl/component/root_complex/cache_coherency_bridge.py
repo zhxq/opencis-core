@@ -90,6 +90,7 @@ class CacheCoherencyBridge(RunnableComponent):
                 await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
 
     async def _process_downstream_target_to_host_packets(self):
+        print("PROCESSING")
         while True:
             cxl_packet = await self._downstream_cxl_cache_fifos.target_to_host.get()
             if cxl_packet is None:

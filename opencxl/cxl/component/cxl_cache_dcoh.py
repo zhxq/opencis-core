@@ -155,6 +155,7 @@ class CxlCacheDcoh(PacketProcessor):
         logger.debug(self._create_message("Started processing incoming fifo from device cache"))
         while True:
             packet = await self._cache_to_coh_agent_fifo.request.get()
+            print("PACKET RECVED")
             if packet is None:
                 logger.debug(
                     self._create_message("Stopped processing incoming fifo from device cache")

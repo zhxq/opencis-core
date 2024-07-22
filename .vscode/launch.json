@@ -27,6 +27,13 @@
         "request": "launch",
         "module": "poetry",
         "args": ["run", "python", "opencxl/bin/cli.py", "start", "-c", "switch", "-c", "sld-group", "--config-file", "configs/1vcs_4sld.yaml", "--log-file=log_name.log", "--log-level=debug"]
+      },
+      {
+        "name": "Run a test", 
+        "type": "debugpy",
+        "request": "launch",
+        "module": "poetry",
+        "args": ["run", "pytest", "-k", "test_cxl_host_type1_ete", "--log-cli-level=INFO", "--log-format=\"%(asctime)s %(levelname)s %(message)s\"", "--log-date-format=\" %Y-%m-%d %H:%M\"", "-s", "--cov", "--cov-report=term-missing"]
       }
     ]
   }

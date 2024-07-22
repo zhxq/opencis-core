@@ -10,10 +10,12 @@ from enum import Enum, auto
 from typing import Optional
 
 
+from opencxl.cxl.component.cxl_mem_dcoh import CxlMemDcoh
 from opencxl.cxl.config_space.dvsec.cxl_devices import (
     DvsecCxlCacheableRangeOptions,
     DvsecCxlCapabilityOptions,
 )
+from opencxl.cxl.transport.cache_fifo import CacheFifoPair
 from opencxl.cxl.transport.transaction import (
     CXL_MEM_S2MBISNP_OPCODE,
     CxlMemBISnpPacket,
@@ -77,6 +79,9 @@ class CxlType3Device(RunnableComponent):
         self._cxl_memory_device_component = None
         self._upstream_connection = transport_connection
 
+        cache_to_coh_agent_fifo = CacheFifoPair()
+        coh_agent_to_cache_fifo = CacheFifoPair()
+
         self._cxl_io_manager = CxlIoManager(
             self._upstream_connection.mmio_fifo,
             None,
@@ -86,13 +91,20 @@ class CxlType3Device(RunnableComponent):
             init_callback=self._init_device,
             label=self._label,
         )
-        self._cxl_mem_manager = CxlMemManager(
+        # self._cxl_mem_manager = CxlMemManager(
+        #     upstream_fifo=self._upstream_connection.cxl_mem_fifo,
+        #     label=self._label,
+        # )
+
+        self._cxl_mem_dcoh = CxlMemDcoh(
+            cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
+            coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
             upstream_fifo=self._upstream_connection.cxl_mem_fifo,
             label=self._label,
         )
 
         # Update CxlMemManager with a CxlMemoryDeviceComponent
-        self._cxl_mem_manager.set_memory_device_component(self._cxl_memory_device_component)
+        self._cxl_mem_dcoh.set_memory_device_component(self._cxl_memory_device_component)
 
     def _init_device(
         self,
@@ -168,18 +180,18 @@ class CxlType3Device(RunnableComponent):
     async def init_bi_snp(self):
         # TODO: implement real BISnp logic
         # This is only a placeholder for tests
-        packet = CxlMemBISnpPacket.create(0x00, CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA)
-        await self._cxl_mem_manager.process_cxl_mem_bisnp_packet(packet)
+        packet = CxlMemBISnpPacket.create(0x100, CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA)
+        await self._cxl_mem_dcoh.create_cxl_mem_bisnp_packet(packet)
 
     async def _run(self):
         # pylint: disable=duplicate-code
         run_tasks = [
             create_task(self._cxl_io_manager.run()),
-            create_task(self._cxl_mem_manager.run()),
+            create_task(self._cxl_mem_dcoh.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_manager.wait_for_ready()),
-            create_task(self._cxl_mem_manager.wait_for_ready()),
+            create_task(self._cxl_mem_dcoh.wait_for_ready()),
         ]
         await gather(*wait_tasks)
         await self._change_status_to_running()
@@ -189,6 +201,6 @@ class CxlType3Device(RunnableComponent):
         # pylint: disable=duplicate-code
         tasks = [
             create_task(self._cxl_io_manager.stop()),
-            create_task(self._cxl_mem_manager.stop()),
+            create_task(self._cxl_mem_dcoh.stop()),
         ]
         await gather(*tasks)

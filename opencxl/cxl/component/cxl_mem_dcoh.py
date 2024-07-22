@@ -108,6 +108,15 @@ class CxlMemDcoh(PacketProcessor):
             CxlMemMemDataPacket.create(data, drs_opcode, meta_field, meta_value),
         )
 
+    async def create_cxl_mem_bisnp_packet(self, mem_bisnp_packet: CxlMemBISnpPacket):
+        await self._create_cxl_mem_bisnp_packet(mem_bisnp_packet)
+
+    async def _create_cxl_mem_bisnp_packet(self, mem_bisnp_packet: CxlMemBISnpPacket):
+        if self._upstream_fifo is not None:
+            print(self._create_message("Creating CXL.mem MEM_BISNP packet"))
+            await self._upstream_fifo.target_to_host.put(mem_bisnp_packet)
+            return
+
     # .mem m2s req (MemRd, MemRdData, and MemInv) handler
     async def _process_cxl_m2s_req_packet(self, m2sreq_packet: CxlMemM2SReqPacket):
         if self._downstream_fifo is not None:
@@ -272,7 +281,12 @@ class CxlMemDcoh(PacketProcessor):
             if not base_packet.is_cxl_mem():
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
 
-            logger.debug(self._create_message("Received incoming packet from host"))
+            logger.debug(self._create_message("Received incoming CXL.mem M2S packet from host"))
+            print(
+                self._create_message(
+                    "Received incoming CXL.mem M2S packet from host!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                )
+            )
             cxl_mem_packet = cast(CxlMemBasePacket, packet)
 
             if cxl_mem_packet.is_m2sreq():
@@ -281,7 +295,7 @@ class CxlMemDcoh(PacketProcessor):
                     await self._process_cxl_m2s_req_packet(m2sreq_packet)
                 else:
                     raise Exception(
-                        f"Unsupported M2SReq Opcode: {m2sreq_packet.m2sreq_header.mem_opcode}"
+                        f"Unsupported M2SReq Opcode: {m2sreq_packet.m2sreq_header.mem_opcode.name}"
                     )
             elif cxl_mem_packet.is_m2srwd():
                 m2srwd_packet = cast(CxlMemM2SRwDPacket, packet)
@@ -289,7 +303,7 @@ class CxlMemDcoh(PacketProcessor):
                     await self._process_cxl_m2s_rwd_packet(m2srwd_packet)
                 else:
                     raise Exception(
-                        f"Unsupported M2SRwd Opcode: {m2srwd_packet.m2srwd_header.mem_opcode}"
+                        f"Unsupported M2SRwd Opcode: {m2srwd_packet.m2srwd_header.mem_opcode.name}"
                     )
             elif cxl_mem_packet.is_m2sbirsp():
                 m2sbirsp_packet = cast(CxlMemM2SBIRspPacket, packet)
@@ -300,7 +314,7 @@ class CxlMemDcoh(PacketProcessor):
                     packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data)
                 else:
                     raise Exception(
-                        f"Unsupported M2SBIRsp Opcode: {m2sbirsp_packet.m2sbirsp_header.opcode}"
+                        f"Unsupported M2SBIRsp Opcode: {m2sbirsp_packet.m2sbirsp_header.opcode.name}"
                     )
                 await self._cache_to_coh_agent_fifo.response.put(packet)
             else:

@@ -295,6 +295,7 @@ class HomeAgent(RunnableComponent):
                     cxl_packet = await self._downstream_cxl_mem_fifos.target_to_host.get()
                     base_packet = cast(CxlMemBasePacket, cxl_packet)
                     if base_packet.is_s2mbisnp():
+                        print("-1-1-1-1-1-1-1-1-1-1-1-1RECEIVED")
                         await self._downstream_cxl_mem_fifos.target_to_host.put(cxl_packet)
                         cache_packet = CacheResponse(status)
                     else:
@@ -303,6 +304,7 @@ class HomeAgent(RunnableComponent):
                         cache_packet = CacheResponse(status, packet.data)
                 else:
                     cache_packet = CacheResponse(status)
+                print(cache_packet)
                 await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
 
             elif base_packet.is_s2mdrs():

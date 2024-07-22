@@ -187,9 +187,12 @@ class CacheController(RunnableComponent):
     # For request: coherency tasks from cache controller to coh module
     async def _cache_to_coh_state_lookup(self, address: int) -> None:
         packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, address)
+        print(packet)
         await self._cache_to_coh_agent_fifo.request.put(packet)
+        print("getting")
+        # NOTE: to self: the process stuck at the next line
         packet = await self._cache_to_coh_agent_fifo.response.get()
-
+        print("Is it here?")
         assert packet.status == CACHE_RESPONSE_STATUS.RSP_I
 
     # For response: coherency tasks from coh module to cache controller
@@ -279,24 +282,29 @@ class CacheController(RunnableComponent):
             self._cache_data_write(set, cache_blk, data)
         # cache miss
         else:
+            print("cache_controller 1")
             cache_blk = self._cache_find_invalid_block(set)
 
             # cache block full
             if cache_blk is None:
+                print("cache_controller 2")
                 cache_blk = self._cache_find_replace_block(set)
                 assem_addr = self._cache_assem_addr(set, cache_blk)
                 cached_data = self._cache_data_read(set, cache_blk)
-
+                print("cache_controller 3")
                 # cacheline flush to secure space
                 await self._memory_store(assem_addr, size, cached_data)
                 self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_INVALID)
 
             # coherency check whenever inserting a cache block
             # always snoop_invalidate for now
+            print("cache_controller 4")
             await self._cache_to_coh_state_lookup(addr)
 
             # todo: read memory if partial update is supported
+            print("cache_controller 5")
             self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_MODIFIED)
+            print("cache_controller 6")
             self._cache_data_write(set, cache_blk, data)
 
     # registered event loop for processor's cache load/store operations

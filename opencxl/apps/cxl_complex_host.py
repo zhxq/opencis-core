@@ -80,7 +80,7 @@ class CxlComplexHost(RunnableComponent):
             cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
             coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
             memory_controller=config.memory_controller,
-            memory_ranges=[],
+            memory_ranges=config.memory_ranges,
             root_ports=root_complex_root_ports,
         )
         self._root_complex = RootComplex(root_complex_config)

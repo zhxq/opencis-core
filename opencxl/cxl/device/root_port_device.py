@@ -303,6 +303,7 @@ class CxlRootPortDevice(RunnableComponent):
         try:
             async with asyncio.timeout(3):
                 packet = await self._downstream_connection.cxl_mem_fifo.target_to_host.get()
+            print(packet.get_pretty_string())
             assert is_cxl_mem_data(packet)
             mem_data_packet = cast(CxlMemMemDataPacket, packet)
             return mem_data_packet.data

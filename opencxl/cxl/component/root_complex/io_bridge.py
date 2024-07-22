@@ -183,4 +183,5 @@ class IoBridge(RunnableComponent):
         await gather(*tasks)
 
     async def _stop(self):
-        await self._cxl_io_mmio_fifos.put(None)
+        await self._cxl_io_mmio_fifos.host_to_target.put(None)
+        await self._cxl_io_mmio_fifos.target_to_host.put(None)
