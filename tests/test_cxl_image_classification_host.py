@@ -145,18 +145,18 @@ async def test_cxl_host_type1_image_classification_host_ete():
                 device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
             )
 
-        # data = 0x00000000
-        # for i in range(16):
-        #     data <<= 32
-        #     data |= int(str(f"{i:x}") * 8, 16)
+        data = 0x00000000
+        for i in range(16):
+            data <<= 32
+            data |= int(str(f"{i:x}") * 8, 16)
 
-        # step = 64
-        # for addr in range(0x00000000, 0x00010000, step):
-        #     if addr % 0x800 == 0:
-        #         logger.debug(f"Writing 0x{addr:x}")
-        #     await dev_list[0]._cxl_type1_device._cache_controller.cache_coherent_store(
-        #         addr, step, data
-        #     )
+        step = 64
+        for addr in range(0x00000000, 0x00010000, step):
+            if addr % 0x800 == 0:
+                logger.debug(f"Writing 0x{addr:x}")
+            await dev_list[0]._cxl_type1_device._cache_controller.cache_coherent_store(
+                addr, step, data
+            )
 
         # first_dev_rcvd = await dev_list[0]._cxl_type1_device.cxl_cache_readline(0x00000000, step)
         # logger.debug(f"First device reads: {first_dev_rcvd:x}")
