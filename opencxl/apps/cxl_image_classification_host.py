@@ -362,6 +362,12 @@ class CxlImageClassificationHost(RunnableComponent):
     def get_root_complex(self):
         return self._root_complex
 
+    def append_dev_mmio_range(self, base, size):
+        self._host_simple_processor.append_dev_mmio_range(base, size)
+
+    def append_dev_mem_range(self, base, size):
+        self._host_simple_processor.append_dev_mem_range(base, size)
+
     async def _run(self):
         run_tasks = [
             asyncio.create_task(self._root_port_client_manager.run()),
