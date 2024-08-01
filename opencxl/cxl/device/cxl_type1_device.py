@@ -124,7 +124,6 @@ class CxlType1Device(RunnableComponent):
             device_name=config.device_name, processor_to_cache_fifo=processor_to_cache_fifo
         )
         self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
-        self._mmio_manager = None
 
     async def read_mmio(self, addr: int, size: int, bar: int = 0):
         return await self._mmio_manager.read_mmio(addr, size, bar)
@@ -137,6 +136,7 @@ class CxlType1Device(RunnableComponent):
         mmio_manager: MmioManager,
         config_space_manager: ConfigSpaceManager,
     ):
+        print("TYPE1INIT")
         self._mmio_manager = mmio_manager
         # Create PCiComponent
         pci_identity = PciComponentIdentity(
@@ -249,6 +249,7 @@ class CxlType1Device(RunnableComponent):
         await gather(*run_tasks)
 
     async def _stop(self):
+        print("TYPE1STOPPPPPPPPPPPPPPPPPPPPPPPPP")
         # pylint: disable=duplicate-code
         tasks = [
             create_task(self._cxl_io_manager.stop()),

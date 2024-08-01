@@ -51,20 +51,21 @@ from opencxl.cxl.transport.cache_fifo import CacheFifoPair
 @dataclass
 class HostTrainIoGenConfig:
     host_name: str
-    processor_to_mem_fifo: MemoryFifoPair
+    processor_to_cache_fifo: MemoryFifoPair
     root_complex: RootComplex
     irq_handler: IrqManager
     base_addr: int
     device_count: int
     interleave_gran: int
     device_type: CXL_COMPONENT_TYPE.T1
+    cache_controller: CacheController
 
 
 class HostTrainIoGen(RunnableComponent):
     def __init__(self, config: HostTrainIoGenConfig, sample_from_each_category: int = 5):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
         self._host_name = config.host_name
-        self._processor_to_mem_fifo = config.processor_to_mem_fifo
+        self._processor_to_cache_fifo = config.processor_to_cache_fifo
         self._root_complex = config.root_complex
         self._irq_handler = config.irq_handler
         self._validation_results = []
@@ -77,9 +78,12 @@ class HostTrainIoGen(RunnableComponent):
         self._device_count = config.device_count
         self._interleave_gran = config.interleave_gran
         self._dev_type = config.device_type
+        self._cache_controller = config.cache_controller
         self._train_data_path = "/Users/zhxq/Downloads/imagenette2-160"
         self._dev_mmio_ranges: list[tuple[int, int]] = []
         self._dev_mem_ranges: list[tuple[int, int]] = []
+        self._start_signal = asyncio.Event()
+        self._stop_signal = asyncio.Event()
 
     def append_dev_mmio_range(self, base, size):
         self._dev_mmio_ranges.append((base, size))
@@ -87,18 +91,31 @@ class HostTrainIoGen(RunnableComponent):
     def append_dev_mem_range(self, base, size):
         self._dev_mem_ranges.append((base, size))
 
+    def set_device_count(self, dev_count: int):
+        self._device_count = dev_count
+
     # pylint: disable=duplicate-code
     async def load(self, address: int, size: int) -> MemoryResponse:
         packet = MemoryRequest(MEMORY_REQUEST_TYPE.READ, address, size)
-        await self._processor_to_mem_fifo.request.put(packet)
-        packet = await self._processor_to_mem_fifo.response.get()
+        await self._processor_to_cache_fifo.request.put(packet)
+        packet = await self._processor_to_cache_fifo.response.get()
         return packet
 
-    async def store(self, address: int, size: int, value: int) -> MemoryResponse:
-        packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, address, size, value)
-        await self._processor_to_mem_fifo.request.put(packet)
-        packet = await self._processor_to_mem_fifo.response.get()
-        return packet
+    async def store(self, address: int, size: int, value: int):
+        if address % 64 != 0 or size % 64 != 0:
+            raise Exception("Size and address must be aligned to 64!")
+
+        chunk_count = 0
+        while size > 0:
+            message = self._create_message(f"Host Memory: Writing 0x{value:08x} to 0x{address:08x}")
+            logger.debug(message)
+            low_64_byte = value & ((1 << (64 * 8)) - 1)
+            await self._cache_controller.cache_coherent_store(
+                address + (chunk_count * 64), 64, low_64_byte
+            )
+            size -= 64
+            chunk_count += 1
+            value >>= 64 * 8
 
     async def write_config(self, bdf: int, offset: int, size: int, value: int):
         await self._root_complex.write_config(bdf, offset, size, value)
@@ -121,6 +138,7 @@ class HostTrainIoGen(RunnableComponent):
         return self._dev_mem_ranges[device][0] + addr
 
     async def _host_process_validation_type1(self):
+        print("_host_process_validation_type1 INVOKED!!!!!")
         categories = glob.glob(self._train_data_path + "/val/*")
         self._total_samples = len(categories) * self._sample_from_each_category
         self._validation_results: List[List[Dict[str, float]]] = [[] for _ in self._total_samples]
@@ -136,7 +154,15 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data = f.read()
                     pic_data_int = int.from_bytes(pic_data, "little")
                     pic_data_len = len(pic_data)
-                    await self.store(pic_data_mem_loc, pic_data_len, pic_data_int)
+                    pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
+                    print(f"loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}")
+                    for dev_id in range(self._device_count):
+                        event = asyncio.Event()
+                        await self.store(
+                            pic_data_mem_loc,
+                            pic_data_len_rounded,
+                            pic_data_int,
+                        )
                     for dev_id in range(self._device_count):
                         # Remember to configure the device when starting the app
                         # Should make sure to_device_addr returns correct mmio for that dev_id
@@ -154,6 +180,7 @@ class HostTrainIoGen(RunnableComponent):
                             self._save_validation_result_type1(dev_id, pic_id, event),
                         )
                         await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
+                        print("send_irq_request done")
                         await event.wait()
                         # Currently we don't send the picture information
                         # (e.g., pic_id) to the device
@@ -218,10 +245,13 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data = f.read()
                     pic_data_int = int.from_bytes(pic_data, "little")
                     pic_data_len = len(pic_data)
+                    pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
                     for dev_id in range(self._device_count):
                         event = asyncio.Event()
                         await self.store(
-                            self.to_device_mem_addr(dev_id, 0x00008000), pic_data_len, pic_data_int
+                            self.to_device_mem_addr(dev_id, 0x00008000),
+                            pic_data_len_rounded,
+                            pic_data_int,
                         )
                         self._irq_handler.register_interrupt_handler(
                             Irq.ACCEL_VALIDATION_FINISHED,
@@ -241,12 +271,53 @@ class HostTrainIoGen(RunnableComponent):
         # Pass init-info mem location to the remote using MMIO
         csv_data_mem_loc = 0x00004000
         csv_data = b""
+        print("llc_iogen_waiting to be run")
+        await self._start_signal.wait()
+        print("llc_iogen_running")
         with open(f"{self._train_data_path}/noisy_imagenette.csv", "rb") as f:
             csv_data = f.read()
         csv_data_int = int.from_bytes(csv_data, "little")
         csv_data_len = len(csv_data)
+        csv_data_len_rounded = (((csv_data_len - 1) // 64) + 1) * 64
+        # print("Storing data...")
+        # await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
+        # print("Data was stored!")
 
-        await self.store(csv_data_mem_loc, csv_data_len, csv_data_int)
+        for dev_id in range(self._device_count):
+            print(f"IRQ_SENT to {dev_id} @ 0x{self.to_device_mmio_addr(dev_id, 0x1800):x}")
+            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 4, csv_data_mem_loc)
+            print(f"IRQ_SENT S2")
+            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 4, csv_data_len)
+
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
 
         if self._dev_type == CXL_COMPONENT_TYPE.T1:
             self._irq_handler.register_interrupt_handler(
@@ -260,19 +331,27 @@ class HostTrainIoGen(RunnableComponent):
             raise Exception("Only T1 and T2 devices are allowed!")
 
         for dev_id in range(self._device_count):
-            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x800), 8, csv_data_mem_loc)
-            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x808), 8, csv_data_len)
             await self._irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
+            print("IRQ_SENT S4")
+
+        while True:
+            await asyncio.sleep(0)
+            await self._irq_handler.poll()
+
+    def start_job(self):
+        self._start_signal.set()
 
     async def _run(self):
         tasks = [
             asyncio.create_task(self._host_process_llc_iogen()),
         ]
         await self._change_status_to_running()
+        tasks.append(asyncio.create_task(self._stop_signal.wait()))
         await asyncio.gather(*tasks)
+        pass
 
     async def _stop(self):
-        await self._processor_to_mem_fifo.response.put(None)
+        await self._processor_to_cache_fifo.response.put(None)
 
 
 @dataclass
@@ -298,9 +377,7 @@ class CxlImageClassificationHost(RunnableComponent):
         coh_bridge_to_cache_fifo = CacheFifoPair()
 
         self._irq_handler = IrqManager(
-            device_name=self._label,
-            server_bind_port=9000,
-            client_target_port=[9100, 9101, 9102, 9103],
+            device_name=config.host_name, addr="127.0.0.1", port=9050, server=True
         )
 
         # Create Root Port Client Manager
@@ -349,33 +426,46 @@ class CxlImageClassificationHost(RunnableComponent):
 
         host_processor_config = HostTrainIoGenConfig(
             host_name=config.host_name,
-            processor_to_mem_fifo=processor_to_mem_fifo,
-            root_complex=self.get_root_complex(),
+            processor_to_cache_fifo=processor_to_cache_fifo,
+            root_complex=self._root_complex,
             irq_handler=self._irq_handler,
             base_addr=0x290000000,
-            device_count=4,
+            device_count=1,
             interleave_gran=0x100,
             device_type=CXL_COMPONENT_TYPE.T1,
+            cache_controller=self._cache_controller,
         )
         self._host_simple_processor = HostTrainIoGen(host_processor_config)
 
     def get_root_complex(self):
         return self._root_complex
 
+    def append_dev_mmio_range(self, base, size):
+        self._host_simple_processor.append_dev_mmio_range(base, size)
+
+    def append_dev_mem_range(self, base, size):
+        self._host_simple_processor.append_dev_mem_range(base, size)
+
+    def start_job(self):
+        self._host_simple_processor.start_job()
+
+    def set_device_count(self, dev_count: int):
+        self._host_simple_processor.set_device_count(dev_count)
+
     async def _run(self):
         run_tasks = [
+            asyncio.create_task(self._irq_handler.run()),
             asyncio.create_task(self._root_port_client_manager.run()),
             asyncio.create_task(self._root_complex.run()),
             asyncio.create_task(self._cache_controller.run()),
             asyncio.create_task(self._host_simple_processor.run()),
-            # asyncio.create_task(self._irq_handler.run()),
         ]
         wait_tasks = [
+            asyncio.create_task(self._irq_handler.wait_for_ready()),
             asyncio.create_task(self._root_port_client_manager.wait_for_ready()),
             asyncio.create_task(self._root_complex.wait_for_ready()),
             asyncio.create_task(self._cache_controller.wait_for_ready()),
             asyncio.create_task(self._host_simple_processor.wait_for_ready()),
-            # asyncio.create_task(self._irq_handler.wait_for_ready()),
         ]
         await asyncio.gather(*wait_tasks)
         await self._change_status_to_running()
@@ -387,6 +477,6 @@ class CxlImageClassificationHost(RunnableComponent):
             asyncio.create_task(self._root_complex.stop()),
             asyncio.create_task(self._cache_controller.stop()),
             asyncio.create_task(self._host_simple_processor.stop()),
-            # asyncio.create_task(self._irq_handler.stop()),
+            asyncio.create_task(self._irq_handler.stop()),
         ]
         await asyncio.gather(*tasks)

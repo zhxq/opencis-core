@@ -6,13 +6,14 @@
 """
 
 # pylint: disable=unused-import
-from asyncio import gather, create_task
+from asyncio import gather, create_task, Event, sleep
 from io import BytesIO
 from typing import cast
 
 import json
 import os
 import torch
+from pathlib import Path
 
 from PIL import Image
 from torch import nn
@@ -51,8 +52,7 @@ class MyType1Accelerator(RunnableComponent):
         port_index: int,
         host: str = "0.0.0.0",
         port: int = 8000,
-        irq_listen_port: int = 9100,
-        irq_send_port: int = 9000,
+        server_port: int = 9050,
         device_id: int = 0,
     ):
         label = f"Port{port_index}"
@@ -68,11 +68,8 @@ class MyType1Accelerator(RunnableComponent):
             )
         )
 
-        self.accel_dirname = f"T1Accel@{self._label}"
-
-        # Don't run the following code for now
-        # pylint: disable=unreachable
-        return
+        self.accel_dirname = f"/Users/zhxq/Downloads/imagenette2-160/T1Accel@{self._label}"
+        Path(self.accel_dirname).mkdir(parents=True, exist_ok=True)
         # Model setup
         self.model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
 
@@ -89,21 +86,27 @@ class MyType1Accelerator(RunnableComponent):
             ]
         )
 
-        self._train_dataset = datasets.ImageFolder(root="train", transform=self.transform)
+        self._train_dataset = datasets.ImageFolder(
+            root="/Users/zhxq/Downloads/imagenette2-160/train", transform=self.transform
+        )
         self._train_dataloader = DataLoader(
             self._train_dataset, batch_size=32, shuffle=True, num_workers=4
         )
 
-        self._test_dataset = datasets.ImageFolder(root="val", transform=self.transform)
+        self._test_dataset = datasets.ImageFolder(
+            root="/Users/zhxq/Downloads/imagenette2-160/val", transform=self.transform
+        )
         self._test_dataloader = DataLoader(
             self._train_dataset, batch_size=10, shuffle=True, num_workers=4
         )
 
         self._irq_manager = IrqManager(
-            server_bind_port=irq_listen_port,
-            client_target_port=[irq_send_port],
+            addr="127.0.0.1",
+            port=server_port,
             device_name=label,
         )
+
+        self._stop_signal = Event()
 
         self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
         self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
@@ -181,19 +184,55 @@ class MyType1Accelerator(RunnableComponent):
 
         CACHELINE_LENGTH = 64
 
-        metadata_addr_mmio_addr = 0x800
-        metadata_size_mmio_addr = 0x808
+        metadata_addr_mmio_addr = 0x1800
+        metadata_size_mmio_addr = 0x1808
         metadata_addr = await self._cxl_type1_device.read_mmio(metadata_addr_mmio_addr, 8)
         metadata_size = await self._cxl_type1_device.read_mmio(metadata_size_mmio_addr, 8)
 
         metadata_end = metadata_addr + metadata_size
 
-        with open("noisy_imagenette.csv", "wb") as md_file:
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+
+        with open(f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv", "wb") as md_file:
+            print(f"addr: 0x{metadata_addr:x}")
+            print(f"end: 0x{metadata_end:x}")
             for cacheline_offset in range(metadata_addr, metadata_end, CACHELINE_LENGTH):
                 cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
                 cacheline = cast(int, cacheline)
                 chunk_size = min(CACHELINE_LENGTH, (metadata_end - cacheline_offset))
-                md_file.write(cacheline.to_bytes(chunk_size, "little"))
+                if chunk_size != 64:
+                    mask = (1 << (chunk_size * 8)) - 1
+                    cacheline &= mask
+                chunk = cacheline.to_bytes(chunk_size, "little")
+                md_file.write(chunk)
+        for _ in range(100):
+            await sleep(0)
+
+        print("Finished writing file")
 
     async def _get_test_image(self) -> Image.Image:
 
@@ -250,18 +289,48 @@ class MyType1Accelerator(RunnableComponent):
 
         # Done with eval
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
+        await sleep(0)
 
     async def _run_app(self):
-        # pylint: disable=unused-variable
-        # pylint: disable=no-member
-        logger.info(
-            self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
-        )
-        os.chdir(self.accel_dirname)
+        print("app running")
 
-        logger.info(self._create_message("Creating symlinks to training and validation datasets"))
-        os.symlink(src="../imagenette2-160/train", dst="train", target_is_directory=True)
-        os.symlink(src="../imagenette2-160/val", dst="val", target_is_directory=True)
+        # chdir could cause issues! The memory won't be able to be read
+        # logger.info(
+        #     self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
+        # )
+        # os.chdir(self.accel_dirname)
+
+        # logger.info(self._create_message("Creating symlinks to training and validation datasets"))
+        # os.symlink(
+        #     src="/Users/zhxq/Downloads/imagenette2-160/train", dst="train", target_is_directory=True
+        # )
+        # os.symlink(
+        #     src="/Users/zhxq/Downloads/imagenette2-160/val", dst="val", target_is_directory=True
+        # )
 
         logger.info(self._create_message("Beginning training"))
         if torch.cuda.is_available():
@@ -272,56 +341,63 @@ class MyType1Accelerator(RunnableComponent):
             device = torch.device("cpu")
         print(f"torch.device: {device}")
 
-        # Uses CXL.cache to copy metadata from host cached memory into device local memory
-        await self._get_metadata()
+        # # Uses CXL.cache to copy metadata from host cached memory into device local memory
+        # await self._get_metadata()
 
-        epochs = 2
-        epoch_loss = 0
-        for epoch in range(epochs):
-            loss_fn = torch.nn.CrossEntropyLoss()
-            optimizer = torch.optim.SGD(self.model.parameters())
-            scheduler = torch.optim.lr_scheduler.LinearLR(
-                optimizer, start_factor=1, end_factor=0.5, total_iters=30
-            )
-            self._train_one_epoch(
-                train_dataloader=self._train_dataloader,
-                test_dataloader=self._test_dataloader,
-                optimizer=optimizer,
-                loss_fn=loss_fn,
-                device=device,
-            )
-            scheduler.step()
+        # epochs = 2
+        # epoch_loss = 0
+        # for epoch in range(epochs):
+        #     loss_fn = torch.nn.CrossEntropyLoss()
+        #     optimizer = torch.optim.SGD(self.model.parameters())
+        #     scheduler = torch.optim.lr_scheduler.LinearLR(
+        #         optimizer, start_factor=1, end_factor=0.5, total_iters=30
+        #     )
+        #     self._train_one_epoch(
+        #         train_dataloader=self._train_dataloader,
+        #         test_dataloader=self._test_dataloader,
+        #         optimizer=optimizer,
+        #         loss_fn=loss_fn,
+        #         device=device,
+        #     )
+        #     scheduler.step()
 
         # Done training
+        print("Training Done!!!")
         await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
 
-    async def _app_shutdown(self):
-        logger.info("Moving out of accelerator directory")
-        os.chdir("..")
+    async def _main_loop(self):
+        while True:
+            await sleep(0)
+            pass
 
+    async def _app_shutdown(self):
         logger.info("Removing accelerator directory")
         os.rmdir(self.accel_dirname)
 
     async def _run(self):
         tasks = [
             create_task(self._sw_conn_client.run()),
+            create_task(self._irq_manager.run()),
             create_task(self._cxl_type1_device.run()),
-            # create_task(self._irq_manager.run()),
         ]
         await self._sw_conn_client.wait_for_ready()
+        t = await self._irq_manager.start_connection()
+        await self._irq_manager.wait_for_ready()
         await self._cxl_type1_device.wait_for_ready()
-        # await self._irq_manager.wait_for_ready()
         await self._change_status_to_running()
+        tasks.append(t)
+        self._temp_tasks = [t]
+        # create_task(self._main_loop())
         await gather(*tasks)
 
     async def _stop(self):
         tasks = [
             create_task(self._sw_conn_client.stop()),
             create_task(self._cxl_type1_device.stop()),
-            # create_task(self._irq_manager.stop()),
+            create_task(self._irq_manager.stop()),
         ]
         await gather(*tasks)
-        # await self._app_shutdown()
+        await self._app_shutdown()
 
 
 class MyType2Accelerator(RunnableComponent):
@@ -344,267 +420,272 @@ class MyType2Accelerator(RunnableComponent):
         memory_file: str,
         host: str = "0.0.0.0",
         port: int = 8000,
-        irq_listen_port: int = 9100,
-        irq_send_port: int = 9000,
+        server_port: int = 9050,
     ):
         label = f"Port{port_index}"
-        super().__init__(label)
-        self._sw_conn_client = SwitchConnectionClient(
-            port_index, CXL_COMPONENT_TYPE.T2, host=host, port=port
-        )
 
-        device_config = CxlType2DeviceConfig(
-            device_name=label,
-            transport_connection=self._sw_conn_client.get_cxl_connection(),
-            memory_size=memory_size,
-            memory_file=memory_file,
-        )
-        self._cxl_type2_device = CxlType2Device(device_config)
-        self.accel_dirname = f"T2Accel@{self._label}"
 
-        # Don't run the following code for now
-        # pylint: disable=unreachable
-        return
+#         super().__init__(label)
+#         self._sw_conn_client = SwitchConnectionClient(
+#             port_index, CXL_COMPONENT_TYPE.T2, host=host, port=port
+#         )
 
-        # Model setup
-        self.model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
+#         device_config = CxlType2DeviceConfig(
+#             device_name=label,
+#             transport_connection=self._sw_conn_client.get_cxl_connection(),
+#             memory_size=memory_size,
+#             memory_file=memory_file,
+#         )
+#         self._cxl_type2_device = CxlType2Device(device_config)
+#         self.accel_dirname = f"/Users/zhxq/Downloads/imagenette2-160/T2Accel@{self._label}"
 
-        # Reset the classification head and freeze params
-        self.model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
-        for p in self.model.features.parameters():
-            p.requires_grad = False
-        summary(self.model, input_size=(1, 3, 160, 160))
+#         # Don't run the following code for now
+#         # pylint: disable=unreachable
+#         return
 
-        self.transform = transforms.Compose(
-            [
-                transforms.Resize((160, 160)),
-                transforms.ToTensor(),
-            ]
-        )
+#         # Model setup
+#         self.model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
 
-        self._train_dataset = datasets.ImageFolder(root="train", transform=self.transform)
-        self._train_dataloader = DataLoader(
-            self._train_dataset, batch_size=32, shuffle=True, num_workers=4
-        )
+#         # Reset the classification head and freeze params
+#         self.model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
+#         for p in self.model.features.parameters():
+#             p.requires_grad = False
+#         summary(self.model, input_size=(1, 3, 160, 160))
 
-        self._test_dataset = datasets.ImageFolder(root="val", transform=self.transform)
-        self._test_dataloader = DataLoader(
-            self._train_dataset, batch_size=10, shuffle=True, num_workers=4
-        )
+#         self.transform = transforms.Compose(
+#             [
+#                 transforms.Resize((160, 160)),
+#                 transforms.ToTensor(),
+#             ]
+#         )
 
-        self._irq_manager = IrqManager(
-            server_bind_port=irq_listen_port,
-            client_target_port=[irq_send_port],
-            device_name=label,
-        )
+#         self._train_dataset = datasets.ImageFolder(root="train", transform=self.transform)
+#         self._train_dataloader = DataLoader(
+#             self._train_dataset, batch_size=32, shuffle=True, num_workers=4
+#         )
 
-        # self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
-        # self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
+#         self._test_dataset = datasets.ImageFolder(root="val", transform=self.transform)
+#         self._test_dataloader = DataLoader(
+#             self._train_dataset, batch_size=10, shuffle=True, num_workers=4
+#         )
 
-    def _train_one_epoch(self, train_dataloader, test_dataloader, device, optimizer, loss_fn):
-        # pylint: disable=unused-variable
-        self.model.train()
-        correct_count = 0
-        running_train_loss = 0
-        for _, (inputs, labels) in tqdm(
-            enumerate(train_dataloader),
-            total=len(train_dataloader),
-            desc="Progress",
-        ):
-            inputs = inputs.to(device)
-            labels = labels.to(device)
+#         self._irq_manager = IrqManager(
+#             server_bind_port=irq_listen_port,
+#             client_target_port=[irq_send_port],
+#             device_name=label,
+#         )
 
-            # logits
-            pred_logits = self.model(inputs)
-            loss = loss_fn(pred_logits, labels)
-            predicted_prob = torch.softmax(pred_logits, dim=1)
-            pred_classes = torch.argmax(predicted_prob, dim=1)
+#         # self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
+#         # self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
 
-            loss.backward()
+#     def _train_one_epoch(self, train_dataloader, test_dataloader, device, optimizer, loss_fn):
+#         # pylint: disable=unused-variable
+#         self.model.train()
+#         correct_count = 0
+#         running_train_loss = 0
+#         for _, (inputs, labels) in tqdm(
+#             enumerate(train_dataloader),
+#             total=len(train_dataloader),
+#             desc="Progress",
+#         ):
+#             inputs = inputs.to(device)
+#             labels = labels.to(device)
 
-            optimizer.step()
+#             # logits
+#             pred_logits = self.model(inputs)
+#             loss = loss_fn(pred_logits, labels)
+#             predicted_prob = torch.softmax(pred_logits, dim=1)
+#             pred_classes = torch.argmax(predicted_prob, dim=1)
 
-            is_correct = pred_classes == labels
-            correct_count += is_correct.sum()
-            running_train_loss += loss.item() * inputs.size(0)
+#             loss.backward()
 
-        train_loss = running_train_loss / len(train_dataloader.sampler)
-        train_accuracy = correct_count / len(train_dataloader.sampler)
-        print(f"train_loss: {train_loss}, train_accuracy: {train_accuracy}")
+#             optimizer.step()
 
-        if device == "cuda:0":
-            torch.cuda.empty_cache()
+#             is_correct = pred_classes == labels
+#             correct_count += is_correct.sum()
+#             running_train_loss += loss.item() * inputs.size(0)
 
-        self.model.eval()
-        with torch.no_grad():
-            running_test_loss = 0
-            correct_count = 0
-            for _, (inputs, labels) in tqdm(
-                enumerate(test_dataloader),
-                total=len(test_dataloader),
-                desc="Progress",
-            ):
-                inputs = inputs.to(device)
-                labels = labels.to(device)
+#         train_loss = running_train_loss / len(train_dataloader.sampler)
+#         train_accuracy = correct_count / len(train_dataloader.sampler)
+#         print(f"train_loss: {train_loss}, train_accuracy: {train_accuracy}")
 
-                pred_logit = self.model(inputs)
-                loss = loss_fn(pred_logit, labels)
-                running_test_loss += loss.item() * inputs.size(0)
+#         if device == "cuda:0":
+#             torch.cuda.empty_cache()
 
-                pred_classes = torch.argmax(pred_logit, dim=1)
-                is_correct = pred_classes == labels
+#         self.model.eval()
+#         with torch.no_grad():
+#             running_test_loss = 0
+#             correct_count = 0
+#             for _, (inputs, labels) in tqdm(
+#                 enumerate(test_dataloader),
+#                 total=len(test_dataloader),
+#                 desc="Progress",
+#             ):
+#                 inputs = inputs.to(device)
+#                 labels = labels.to(device)
 
-                correct_count += is_correct.sum()
+#                 pred_logit = self.model(inputs)
+#                 loss = loss_fn(pred_logit, labels)
+#                 running_test_loss += loss.item() * inputs.size(0)
 
-                # logits to probs, placeholder
-                pred_probs = torch.softmax(pred_logit, dim=1)
+#                 pred_classes = torch.argmax(pred_logit, dim=1)
+#                 is_correct = pred_classes == labels
 
-        test_loss = running_test_loss / len(test_dataloader.sampler)
-        test_accuracy = correct_count / len(test_dataloader.sampler)
+#                 correct_count += is_correct.sum()
 
-        print(f"test_loss: {test_loss}, test_accuracy: {test_accuracy}")
+#                 # logits to probs, placeholder
+#                 pred_probs = torch.softmax(pred_logit, dim=1)
 
-    async def _get_metadata(self):
-        # When downloading the metadata, the device does not know ahead of time where
-        # the metadata is located, nor the size of the metadata. The host relays this
-        # information by writing to hardcoded DPAs using CXL.mem. Once the accelerator
-        # receives the HOST_READY interrupt, it will read the address and size of the
-        # metadata from its own memory, then use CXL.cache to appropriately request
-        # the data from the host, one cacheline at a time.
+#         test_loss = running_test_loss / len(test_dataloader.sampler)
+#         test_accuracy = correct_count / len(test_dataloader.sampler)
 
-        METADATA_ADDR_DPA = 0x40
-        METADATA_SIZE_DPA = 0x48
+#         print(f"test_loss: {test_loss}, test_accuracy: {test_accuracy}")
 
-        CACHELINE_LENGTH = 64
+#     async def _get_metadata(self):
+#         # When downloading the metadata, the device does not know ahead of time where
+#         # the metadata is located, nor the size of the metadata. The host relays this
+#         # information by writing to hardcoded DPAs using CXL.mem. Once the accelerator
+#         # receives the HOST_READY interrupt, it will read the address and size of the
+#         # metadata from its own memory, then use CXL.cache to appropriately request
+#         # the data from the host, one cacheline at a time.
 
-        metadata_addr = await self._cxl_type2_device.read_mem_dpa(METADATA_ADDR_DPA, 8)
-        metadata_size = await self._cxl_type2_device.read_mem_dpa(METADATA_SIZE_DPA, 8)
+#         METADATA_ADDR_DPA = 0x40
+#         METADATA_SIZE_DPA = 0x48
 
-        with open("noisy_imagenette.csv", "wb") as md_file:
-            for cacheline_offset in range(metadata_addr, metadata_size, CACHELINE_LENGTH):
-                cacheline = await self._cxl_type2_device.cxl_cache_readline(cacheline_offset)
-                cacheline = cast(int, cacheline)
-                md_file.write(cacheline.to_bytes(CACHELINE_LENGTH))
+#         CACHELINE_LENGTH = 64
 
-    async def _get_test_image(self) -> Image.Image:
-        IMAGE_ADDR_DPA = 0x40
-        IMAGE_SIZE_DPA = 0x48
+#         metadata_addr = await self._cxl_type2_device.read_mem_dpa(METADATA_ADDR_DPA, 8)
+#         metadata_size = await self._cxl_type2_device.read_mem_dpa(METADATA_SIZE_DPA, 8)
 
-        CACHELINE_LENGTH = 64
+#         with open("noisy_imagenette.csv", "wb") as md_file:
+#             for cacheline_offset in range(metadata_addr, metadata_size, CACHELINE_LENGTH):
+#                 cacheline = await self._cxl_type2_device.cxl_cache_readline(cacheline_offset)
+#                 cacheline = cast(int, cacheline)
+#                 md_file.write(cacheline.to_bytes(CACHELINE_LENGTH))
 
-        image_addr = await self._cxl_type2_device.read_mem_dpa(IMAGE_ADDR_DPA, 8)
-        image_size = await self._cxl_type2_device.read_mem_dpa(IMAGE_SIZE_DPA, 8)
+#     async def _get_test_image(self) -> Image.Image:
+#         IMAGE_ADDR_DPA = 0x40
+#         IMAGE_SIZE_DPA = 0x48
 
-        im = None
+#         CACHELINE_LENGTH = 64
 
-        with BytesIO() as imgbuf:
-            for cacheline_offset in range(image_addr, image_size, CACHELINE_LENGTH):
-                cacheline = await self._cxl_type2_device.cxl_cache_readline(cacheline_offset)
-                cacheline = cast(int, cacheline)
-                imgbuf.write(cacheline.to_bytes(CACHELINE_LENGTH))
-            im = Image.open(imgbuf)
+#         image_addr = await self._cxl_type2_device.read_mem_dpa(IMAGE_ADDR_DPA, 8)
+#         image_size = await self._cxl_type2_device.read_mem_dpa(IMAGE_SIZE_DPA, 8)
 
-        return im
+#         im = None
 
-    async def _validate_model(self):
-        # pylint: disable=no-member
-        im = await self._get_test_image()
-        tens = cast(torch.Tensor, self.transform(im))
+#         with BytesIO() as imgbuf:
+#             for cacheline_offset in range(image_addr, image_size, CACHELINE_LENGTH):
+#                 cacheline = await self._cxl_type2_device.cxl_cache_readline(cacheline_offset)
+#                 cacheline = cast(int, cacheline)
+#                 imgbuf.write(cacheline.to_bytes(CACHELINE_LENGTH))
+#             im = Image.open(imgbuf)
 
-        # Model expects a 4-dimensional tensor
-        tens = torch.unsqueeze(tens, 0)
+#         return im
 
-        pred_logit = self.model(tens)
-        predicted_probs = torch.softmax(pred_logit, dim=1)
+#     async def _validate_model(self):
+#         # pylint: disable=no-member
+#         im = await self._get_test_image()
+#         tens = cast(torch.Tensor, self.transform(im))
 
-        # 10 predicted classes
-        # TODO: avoid magic number usage
-        pred_kv = {self.test_dataset.classes[i]: predicted_probs[i] for i in range(0, 10)}
+#         # Model expects a 4-dimensional tensor
+#         tens = torch.unsqueeze(tens, 0)
 
-        json_asenc = str.encode(json.dumps(pred_kv))
-        bytes_size = len(json_asenc)
+#         pred_logit = self.model(tens)
+#         predicted_probs = torch.softmax(pred_logit, dim=1)
 
-        json_asint = int.from_bytes(json_asenc)
+#         # 10 predicted classes
+#         # TODO: avoid magic number usage
+#         pred_kv = {self.test_dataset.classes[i]: predicted_probs[i] for i in range(0, 10)}
 
-        RESULTS_DPA = 0x180  # Arbitrarily chosen
-        await self._cxl_type2_device.write_mem_dpa(RESULTS_DPA, json_asint, bytes_size)
+#         json_asenc = str.encode(json.dumps(pred_kv))
+#         bytes_size = len(json_asenc)
 
-        HOST_VECTOR_ADDR = 0x50
-        HOST_VECTOR_SIZE = 0x58
-        await self._cxl_type2_device.write_mem_dpa(HOST_VECTOR_ADDR, RESULTS_DPA, 8)
-        await self._cxl_type2_device.write_mem_dpa(HOST_VECTOR_SIZE, bytes_size, 8)
+#         json_asint = int.from_bytes(json_asenc)
 
-        # Done with eval
-        await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
+#         RESULTS_DPA = 0x180  # Arbitrarily chosen
+#         await self._cxl_type2_device.write_mem_dpa(RESULTS_DPA, json_asint, bytes_size)
 
-    async def _run_app(self):
-        # pylint: disable=unused-variable
-        # pylint: disable=E1101
-        logger.info(
-            self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
-        )
-        os.chdir(self.accel_dirname)
+#         HOST_VECTOR_ADDR = 0x50
+#         HOST_VECTOR_SIZE = 0x58
+#         await self._cxl_type2_device.write_mem_dpa(HOST_VECTOR_ADDR, RESULTS_DPA, 8)
+#         await self._cxl_type2_device.write_mem_dpa(HOST_VECTOR_SIZE, bytes_size, 8)
 
-        logger.info(self._create_message("Creating symlinks to training and validation datasets"))
-        os.symlink(src="../imagenette2-160/train", dst="train", target_is_directory=True)
-        os.symlink(src="../imagenette2-160/val", dst="val", target_is_directory=True)
+#         # Done with eval
+#         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
 
-        logger.info(self._create_message("Beginning training"))
-        if torch.cuda.is_available():
-            device = torch.device("cuda:0")
-        elif torch.backends.mps.is_available():
-            device = torch.device("mps")
-        else:
-            device = torch.device("cpu")
-        print(f"torch.device: {device}")
+#     async def _run_app(self):
+#         # pylint: disable=unused-variable
+#         # pylint: disable=E1101
+#         logger.info(
+#             self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
+#         )
+#         os.chdir(self.accel_dirname)
 
-        # Uses CXL.cache to copy metadata from host cached memory into device local memory
-        await self._get_metadata()
+#         logger.info(self._create_message("Creating symlinks to training and validation datasets"))
+#         os.symlink(
+#             src="/Users/zhxq/Downloads/imagenette2-160/train", dst="train", target_is_directory=True
+#         )
+#         os.symlink(
+#             src="/Users/zhxq/Downloads/imagenette2-160/val", dst="val", target_is_directory=True
+#         )
 
-        epochs = 2
-        epoch_loss = 0
-        for epoch in range(epochs):
-            loss_fn = torch.nn.CrossEntropyLoss()
-            optimizer = torch.optim.SGD(self.model.parameters())
-            scheduler = torch.optim.lr_scheduler.LinearLR(
-                optimizer, start_factor=1, end_factor=0.5, total_iters=30
-            )
-            self._train_one_epoch(
-                train_dataloader=self._train_dataloader,
-                test_dataloader=self._test_dataloader,
-                optimizer=optimizer,
-                loss_fn=loss_fn,
-                device=device,
-            )
-            scheduler.step()
+#         logger.info(self._create_message("Beginning training"))
+#         if torch.cuda.is_available():
+#             device = torch.device("cuda:0")
+#         elif torch.backends.mps.is_available():
+#             device = torch.device("mps")
+#         else:
+#             device = torch.device("cpu")
+#         print(f"torch.device: {device}")
 
-        # Done training
-        await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
+#         # Uses CXL.cache to copy metadata from host cached memory into device local memory
+#         await self._get_metadata()
 
-    async def _app_shutdown(self):
-        logger.info("Moving out of accelerator directory")
-        os.chdir("..")
+#         epochs = 2
+#         epoch_loss = 0
+#         for epoch in range(epochs):
+#             loss_fn = torch.nn.CrossEntropyLoss()
+#             optimizer = torch.optim.SGD(self.model.parameters())
+#             scheduler = torch.optim.lr_scheduler.LinearLR(
+#                 optimizer, start_factor=1, end_factor=0.5, total_iters=30
+#             )
+#             self._train_one_epoch(
+#                 train_dataloader=self._train_dataloader,
+#                 test_dataloader=self._test_dataloader,
+#                 optimizer=optimizer,
+#                 loss_fn=loss_fn,
+#                 device=device,
+#             )
+#             scheduler.step()
 
-        logger.info("Removing accelerator directory")
-        os.rmdir(self.accel_dirname)
+#         # Done training
+#         await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
 
-    async def _run(self):
-        tasks = [
-            create_task(self._sw_conn_client.run()),
-            create_task(self._cxl_type2_device.run()),
-            # create_task(self._irq_manager.run()),
-        ]
-        await self._sw_conn_client.wait_for_ready()
-        await self._cxl_type2_device.wait_for_ready()
-        # await self._irq_manager.wait_for_ready()
-        await self._change_status_to_running()
-        await gather(*tasks)
+#     async def _app_shutdown(self):
+#         logger.info("Moving out of accelerator directory")
+#         os.chdir("..")
 
-    async def _stop(self):
-        tasks = [
-            create_task(self._sw_conn_client.stop()),
-            create_task(self._cxl_type2_device.stop()),
-            # create_task(self._irq_manager.stop()),
-        ]
-        await gather(*tasks)
-        # await self._app_shutdown()
+#         # logger.info("Removing accelerator directory")
+#         # os.rmdir(self.accel_dirname)
+
+#     async def _run(self):
+#         tasks = [
+#             create_task(self._sw_conn_client.run()),
+#             create_task(self._cxl_type2_device.run()),
+#             # create_task(self._irq_manager.run()),
+#         ]
+#         await self._sw_conn_client.wait_for_ready()
+#         await self._cxl_type2_device.wait_for_ready()
+#         # await self._irq_manager.wait_for_ready()
+#         await self._change_status_to_running()
+#         await gather(*tasks)
+
+#     async def _stop(self):
+#         tasks = [
+#             create_task(self._sw_conn_client.stop()),
+#             create_task(self._cxl_type2_device.stop()),
+#             # create_task(self._irq_manager.stop()),
+#         ]
+#         await gather(*tasks)
+#         # await self._app_shutdown()

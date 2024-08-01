@@ -12,11 +12,14 @@ from asyncio import (
     Task,
     create_task,
     gather,
+    sleep,
     start_server,
     open_connection,
+    Lock,
 )
 from asyncio.exceptions import CancelledError
 from enum import Enum
+import traceback
 from typing import Callable, Optional
 
 from opencxl.util.component import RunnableComponent
@@ -24,6 +27,8 @@ from opencxl.util.logger import logger
 
 
 class Irq(Enum):
+    NULL = 0x00
+
     # Host-side file ready to be read by device using CXL.cache
     HOST_READY = 0x01
 
@@ -41,7 +46,7 @@ IRQ_WIDTH = 1  # in bytes
 
 
 class IrqManager(RunnableComponent):
-    _msg_to_interrupt_event: dict[Irq, Event]
+    _msg_to_interrupt_event: dict[Irq, Callable]
     _callbacks: list[Callable]
     _server_task: Task
     _callback_tasks: list[Task]
@@ -49,73 +54,106 @@ class IrqManager(RunnableComponent):
     def __init__(
         self,
         device_name,
-        server_bind_addr="localhost",
-        server_bind_port=9000,
-        client_target_addr="localhost",
-        client_target_port: Optional[list[int]] = None,
+        addr: str = "0.0.0.0",
+        port: int = 9050,
+        server: bool = False,
     ):
         super().__init__(f"{device_name}:IrqHandler")
-        self._server_bind_addr = server_bind_addr
-        self._server_bind_port = server_bind_port
-        self._client_target_addr = client_target_addr
-        if client_target_port is None:
-            client_target_port = [9100, 9101, 9102, 9103]
-        self._client_target_port = client_target_port
+        self._addr = addr
+        self._port = port
         self._callbacks = []
         self._msg_to_interrupt_event = {}
+        self._server = server
+        self._connections: list[tuple[StreamReader, StreamWriter]] = []
+        self._tasks: list[Task] = []
+        self._callback_tasks = []
+        self._new_irq_tasks = []
+        self._lock = Lock()
+        self._end_signal = Event()
 
     def register_interrupt_handler(self, irq_msg: Irq, irq_recv_cb: Callable):
         """
         Registers a callback on the arrival of a specific interrupt.
         Cannot be done while IrqManager is running.
         """
-        ev = Event()
 
         async def _callback():
-            await ev.wait()
             await irq_recv_cb()
 
-        self._callbacks.append(_callback)
-        self._msg_to_interrupt_event[irq_msg] = ev
+        cb_func = _callback
+
+        print(f"Registering interrupt for IRQ {irq_msg.name}")
+
+        self._msg_to_interrupt_event[irq_msg] = cb_func
 
     async def _irq_handler(self, reader: StreamReader, writer: StreamWriter):
-        # pylint: disable=unused-argument
-        msg = reader.read(IRQ_WIDTH)
-        if not msg:
-            logger.debug(self._create_message("Irq enable connection broken"))
-            return
-        if msg not in self._msg_to_interrupt_event:
-            raise RuntimeError(f"Invalid IRQ: {msg}")
-        self._msg_to_interrupt_event[msg].set()
+        while True:
+            if not self._run_status:
+                print("_irq_handler exiting")
+                return
+            msg = await reader.readexactly(IRQ_WIDTH)
+            if not msg:
+                logger.debug(self._create_message("Irq enable connection broken"))
+                return
+            irq = Irq(int.from_bytes(msg))
+            if irq not in self._msg_to_interrupt_event:
+                raise RuntimeError(f"Invalid IRQ: {irq}")
+
+            await self._msg_to_interrupt_event[irq]()
+            print(f"IRQ handled for {irq.name}")
+
+    async def poll(self):
+        print("Polling")
+        await sleep(0)
 
     async def _create_server(self):
-        server = await start_server(
-            self._irq_handler, self._server_bind_addr, self._server_bind_port
-        )
+        async def _new_conn(reader: StreamReader, writer: StreamWriter):
+            self._connections.append((reader, writer))
+
+        server = await start_server(_new_conn, self._addr, self._port, limit=10)
+        print(f"Starting server on {self._addr}:{self._port}")
         return server
 
     async def send_irq_request(self, request: Irq, device: int = 0):
         """
         Sends an IRQ request as the client.
         """
-        _, writer = await open_connection(
-            self._client_target_addr[device], self._client_target_port[device]
-        )
+        print(f"Sending to device {device}")
+        reader, writer = self._connections[device]
         writer.write(request.value.to_bytes(length=IRQ_WIDTH))
         await writer.drain()
-        writer.close()
+
+    async def start_connection(self):
+        print("Device to Host IRQ Connection started!")
+        reader, writer = await open_connection(self._addr, self._port, limit=10)
+        self._connections.append((reader, writer))
+        print("Device to Host IRQ Connection created!")
+        self._run_status = True
+        t = create_task(self._irq_handler(reader, writer))
+        return t
 
     async def _run(self):
         try:
-            server = await self._create_server()
-            self._server_task = create_task(server.serve_forever())
-            self._callback_tasks = [create_task(cb()) for cb in self._callbacks]
+            if self._server:
+                server = await self._create_server()
+                self._server_task = create_task(server.serve_forever())
+                self._tasks.append(self._server_task)
+            else:
+                # self._client_task = create_task(self._irq_handler())
+                # self._tasks.append(self._client_task)
+                pass
             await self._change_status_to_running()
-            await gather(*self._callback_tasks, self._server_task)
+            self._tasks.append(create_task(await self._end_signal.wait()))
+            while True:
+                await sleep(0)
+            await gather(*self._tasks)
+            # await gather(*self._callback_tasks)
         except CancelledError:
             logger.info(self._create_message("Irq enable listener stopped"))
 
     async def _stop(self):
+        print("IRQ Manager Stopping")
         for callback_task in self._callback_tasks:
             callback_task.cancel()
-        self._server_task.cancel()
+        for task in self._tasks:
+            task.cancel()
