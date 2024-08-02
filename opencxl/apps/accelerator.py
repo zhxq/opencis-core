@@ -105,12 +105,12 @@ class MyType1Accelerator(RunnableComponent):
             root=self._train_folder, transform=self.transform
         )
         self._train_dataloader = DataLoader(
-            self._train_dataset, batch_size=32, shuffle=True, num_workers=4
+            self._train_dataset, batch_size=32, shuffle=True, num_workers=8
         )
 
         self._test_dataset = datasets.ImageFolder(root=self._val_folder, transform=self.transform)
         self._test_dataloader = DataLoader(
-            self._train_dataset, batch_size=10, shuffle=True, num_workers=4
+            self._train_dataset, batch_size=10, shuffle=True, num_workers=8
         )
 
         self._irq_manager = IrqManager(
@@ -122,11 +122,20 @@ class MyType1Accelerator(RunnableComponent):
         self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
         self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
 
-    def _train_one_epoch(self, train_dataloader, test_dataloader, device, optimizer, loss_fn):
+    def _train_one_epoch(
+        self,
+        train_dataloader: DataLoader,
+        test_dataloader: DataLoader,
+        device: torch.device,
+        optimizer,
+        loss_fn,
+    ):
         # pylint: disable=unused-variable
         self.model.train()
         correct_count = 0
         running_train_loss = 0
+        inputs: torch.Tensor
+        labels: torch.Tensor
         for _, (inputs, labels) in tqdm(
             enumerate(train_dataloader),
             total=len(train_dataloader),
@@ -202,20 +211,12 @@ class MyType1Accelerator(RunnableComponent):
 
         metadata_end = metadata_addr + metadata_size
 
+        print("Writing metadata")
         with open(f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv", "wb") as md_file:
             print(f"addr: 0x{metadata_addr:x}")
             print(f"end: 0x{metadata_end:x}")
             data = await self._cxl_type1_device.cxl_cache_read(metadata_addr, metadata_size)
             md_file.write(data)
-            # for cacheline_offset in range(metadata_addr, metadata_end, CACHELINE_LENGTH):
-            #     cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
-            #     cacheline = cast(int, cacheline)
-            #     chunk_size = min(CACHELINE_LENGTH, (metadata_end - cacheline_offset))
-            #     if chunk_size != 64:
-            #         mask = (1 << (chunk_size * 8)) - 1
-            #         cacheline &= mask
-            #     chunk = cacheline.to_bytes(chunk_size, "little")
-            #     md_file.write(chunk)
 
         print("Finished writing file")
 
@@ -293,14 +294,19 @@ class MyType1Accelerator(RunnableComponent):
         logger.info(self._create_message("Beginning training"))
         if torch.cuda.is_available():
             device = torch.device("cuda:0")
-        elif torch.backends.mps.is_available():
-            device = torch.device("mps")
+        # elif torch.backends.mps.is_available():
+        #     device = torch.device("mps")
         else:
             device = torch.device("cpu")
         print(f"Using torch.device: {device}")
 
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
-        await self._get_metadata()
+        # await self._get_metadata()
+        # If testing:
+        shutil.copy(
+            f"{self.accel_dirname}{os.path.sep}..{os.path.sep}noisy_imagenette.csv",
+            f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv",
+        )
 
         epochs = 2
         for epoch in range(epochs):

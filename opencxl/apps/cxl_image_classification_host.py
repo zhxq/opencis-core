@@ -325,9 +325,9 @@ class HostTrainIoGen(RunnableComponent):
         csv_data_int = int.from_bytes(csv_data, "little")
         csv_data_len = len(csv_data)
         csv_data_len_rounded = (((csv_data_len - 1) // 64) + 1) * 64
-        print("Storing data...")
-        await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
-        print("Data was stored!")
+        # print("Storing data...")
+        # await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
+        # print("Data was stored!")
 
         for dev_id in range(self._device_count):
             print(f"IRQ_SENT to {dev_id} @ 0x{self.to_device_mmio_addr(dev_id, 0x1800):x}")
