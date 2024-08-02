@@ -84,6 +84,7 @@ class HostTrainIoGen(RunnableComponent):
         self._dev_mem_ranges: list[tuple[int, int]] = []
         self._start_signal = asyncio.Event()
         self._stop_signal = asyncio.Event()
+        self._train_finished_count = 0
 
     def append_dev_mmio_range(self, base, size):
         self._dev_mmio_ranges.append((base, size))
@@ -137,7 +138,13 @@ class HostTrainIoGen(RunnableComponent):
         assert addr < self._dev_mem_ranges[device][1]
         return self._dev_mem_ranges[device][0] + addr
 
-    async def _host_process_validation_type1(self, reader_id: int):
+    async def _host_check_start_validation_type1(self, dev_id: int):
+        print(f"I see dev {dev_id} finished")
+        self._train_finished_count += 1
+        if self._train_finished_count == self._device_count:
+            await self._host_process_validation_type1(dev_id)
+
+    async def _host_process_validation_type1(self, dev_id: int):
         print("_host_process_validation_type1 INVOKED!!!!!")
         categories = glob.glob(self._train_data_path + "/val/*")
         self._total_samples = len(categories) * self._sample_from_each_category
@@ -279,9 +286,9 @@ class HostTrainIoGen(RunnableComponent):
         csv_data_int = int.from_bytes(csv_data, "little")
         csv_data_len = len(csv_data)
         csv_data_len_rounded = (((csv_data_len - 1) // 64) + 1) * 64
-        print("Storing data...")
-        await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
-        print("Data was stored!")
+        # print("Storing data...")
+        # await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
+        # print("Data was stored!")
 
         for dev_id in range(self._device_count):
             print(f"IRQ_SENT to {dev_id} @ 0x{self.to_device_mmio_addr(dev_id, 0x1800):x}")
@@ -299,7 +306,7 @@ class HostTrainIoGen(RunnableComponent):
 
         if self._dev_type == CXL_COMPONENT_TYPE.T1:
             self._irq_handler.register_interrupt_handler(
-                Irq.ACCEL_TRAINING_FINISHED, self._host_process_validation_type1
+                Irq.ACCEL_TRAINING_FINISHED, self._host_check_start_validation_type1
             )
         elif self._dev_type == CXL_COMPONENT_TYPE.T2:
             self._irq_handler.register_interrupt_handler(
@@ -355,7 +362,7 @@ class CxlImageClassificationHost(RunnableComponent):
         coh_bridge_to_cache_fifo = CacheFifoPair()
 
         self._irq_handler = IrqManager(
-            device_name=config.host_name, addr="127.0.0.1", port=9050, server=True
+            device_name=config.host_name, addr="127.0.0.1", port=9050, server=True, device_id=9
         )
 
         # Create Root Port Client Manager

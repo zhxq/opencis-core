@@ -101,9 +101,7 @@ class MyType1Accelerator(RunnableComponent):
         )
 
         self._irq_manager = IrqManager(
-            addr="127.0.0.1",
-            port=server_port,
-            device_name=label,
+            addr="127.0.0.1", port=server_port, device_name=label, device_id=device_id
         )
 
         self._stop_signal = Event()
