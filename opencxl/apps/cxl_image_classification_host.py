@@ -166,6 +166,7 @@ class HostTrainIoGen(RunnableComponent):
             category_name = c.split(os.path.sep)[-1]
             self._sampled_file_categories += [category_name] * self._sample_from_each_category
             for s in sample_pics:
+                print(f"Validating {s}")
                 with open(s, "rb") as f:
                     pic_data = f.read()
                     pic_data_int = int.from_bytes(pic_data, "little")
@@ -173,7 +174,6 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
                     print(f"loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}")
                     for dev_id in range(self._device_count):
-                        event = asyncio.Event()
                         await self.store(
                             pic_data_mem_loc,
                             pic_data_len_rounded,
@@ -184,13 +184,21 @@ class HostTrainIoGen(RunnableComponent):
                         # Should make sure to_device_addr returns correct mmio for that dev_id
                         # In fact, we can use a fixed host memory addr
                         # and we only need to write the length to the device
+                        print(f"Host creating callback irq for {dev_id}")
+                        event = asyncio.Event()
+                        self._irq_handler.register_interrupt_handler(
+                            Irq.ACCEL_VALIDATION_FINISHED,
+                            self._save_validation_result_type1(pic_id, event),
+                            dev_id,
+                        )
+                        print(f"Writing to {dev_id}")
                         await self.write_mmio(
                             self.to_device_mmio_addr(dev_id, 0x1810), 8, pic_data_mem_loc
                         )
                         await self.write_mmio(
                             self.to_device_mmio_addr(dev_id, 0x1818), 8, pic_data_len
                         )
-
+                        print(f"Checking mmio done? {dev_id}")
                         while True:
                             pic_data_mem_loc_rb = await self.read_mmio(
                                 self.to_device_mmio_addr(dev_id, 0x1810), 8
@@ -206,12 +214,7 @@ class HostTrainIoGen(RunnableComponent):
                                 break
                             await asyncio.sleep(0.2)
 
-                        event = asyncio.Event()
-                        self._irq_handler.register_interrupt_handler(
-                            Irq.ACCEL_VALIDATION_FINISHED,
-                            self._save_validation_result_type1(pic_id, event),
-                            dev_id,
-                        )
+                        print(f"Host Sending irq to {dev_id}")
                         await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
                         print("send_irq_request done")
                         await event.wait()

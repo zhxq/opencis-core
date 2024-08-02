@@ -68,7 +68,7 @@ class IrqManager(RunnableComponent):
         self._connections: list[tuple[StreamReader, StreamWriter]] = []
         self._tasks: list[Task] = []
         self._callback_tasks = []
-        self._new_irq_tasks = []
+        self._irq_handlers = []
         self._lock = Lock()
         self._end_signal = Event()
         self._reader_id = {}
@@ -95,13 +95,13 @@ class IrqManager(RunnableComponent):
     async def _irq_handler(self, reader: StreamReader, writer: StreamWriter):
         print(f"Creating irq handler for dev {self._device_id}")
         while True:
-            if not self._run_status:
-                print("_irq_handler exiting")
-                return
+            # if not self._run_status:
+            #     print("_irq_handler exiting")
+            #     return
             msg = await reader.readexactly(IRQ_WIDTH)
-            if not msg:
-                logger.debug(self._create_message("Irq enable connection broken"))
-                return
+            # if not msg:
+            #     logger.debug(self._create_message("Irq enable connection broken"))
+            #     return
             msg_int = int.from_bytes(msg)
             remote_dev_id = msg_int & 0xFF
             if not self._server:
@@ -123,12 +123,13 @@ class IrqManager(RunnableComponent):
         await sleep(0)
 
     async def _create_server(self):
+        self._run_status = True
+
         async def _new_conn(reader: StreamReader, writer: StreamWriter):
             self._connections.append((reader, writer))
-            self._run_status = True
-            create_task(self._irq_handler(reader, writer))
+            self._irq_handlers.append(create_task(self._irq_handler(reader, writer)))
 
-        server = await start_server(_new_conn, self._addr, self._port, limit=1)
+        server = await start_server(_new_conn, self._addr, self._port, limit=2)
         print(f"Starting server on {self._addr}:{self._port}")
         return server
 
@@ -136,10 +137,10 @@ class IrqManager(RunnableComponent):
         """
         Sends an IRQ request as the client.
         """
-        name = "host"
+        info = f"host sending to device {device}"
         if not self._server:
-            name = f"dev {self._device_id}"
-        print(f"{name} sending to device {device}")
+            info = f"device {self._device_id} sending to host"
+        print(info)
         reader, writer = self._connections[device]
         val_w_dev_id = request.value << 8 | self._device_id
         writer.write(val_w_dev_id.to_bytes(length=IRQ_WIDTH))
@@ -147,7 +148,7 @@ class IrqManager(RunnableComponent):
 
     async def start_connection(self):
         print("Device to Host IRQ Connection started!")
-        reader, writer = await open_connection(self._addr, self._port, limit=1)
+        reader, writer = await open_connection(self._addr, self._port, limit=2)
         self._connections.append((reader, writer))
         print("Device to Host IRQ Connection created!")
         self._run_status = True

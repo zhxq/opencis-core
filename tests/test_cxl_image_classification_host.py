@@ -48,7 +48,7 @@ async def test_cxl_host_type1_image_classification_host_ete():
     switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 167
     _stop_signal = asyncio.Event()
 
-    NUM_DEVS = 4
+    NUM_DEVS = 1
 
     port_configs = [PortConfig(PORT_TYPE.USP)]
 

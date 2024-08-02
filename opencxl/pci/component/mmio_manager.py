@@ -164,7 +164,6 @@ class MmioManager(PacketProcessor):
         tag = mem_req_packet.mreq_header.tag
 
         register, offset = self._get_register_and_offset(address, size)
-        print(f"Req Offset at 0x{address:x}")
         if register is None and offset is None:
             if self._should_forward_packet(address, size):
                 await self._forward_request(mem_req_packet)
@@ -217,7 +216,6 @@ class MmioManager(PacketProcessor):
         logger.debug(self._create_message("Started processing host to target fifo"))
         while True:
             packet = await self._upstream_fifo.host_to_target.get()
-            print(packet)
             if packet is None:
                 logger.debug(self._create_message("Stopped processing host to target fifo"))
                 break
