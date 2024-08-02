@@ -84,6 +84,7 @@ class HostTrainIoGen(RunnableComponent):
         self._dev_mem_ranges: list[tuple[int, int]] = []
         self._start_signal = asyncio.Event()
         self._stop_signal = asyncio.Event()
+        self._internal_stop_signal = asyncio.Event()
         self._train_finished_count = 0
 
     def append_dev_mmio_range(self, base, size):
@@ -174,11 +175,13 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
                     print(f"loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}")
                     for dev_id in range(self._device_count):
+                        print("What's happening?")
                         await self.store(
                             pic_data_mem_loc,
                             pic_data_len_rounded,
                             pic_data_int,
                         )
+                    print("Done writing mmio")
                     for dev_id in range(self._device_count):
                         # Remember to configure the device when starting the app
                         # Should make sure to_device_addr returns correct mmio for that dev_id
@@ -222,6 +225,7 @@ class HostTrainIoGen(RunnableComponent):
                         # (e.g., pic_id) to the device
                         # and to prevent race condition, we need to send pics synchronously
                     pic_data_mem_loc += pic_data_len
+                    pic_data_mem_loc = (((pic_data_mem_loc - 1) // 64) + 1) * 64
                     pic_id += 1
         self._merge_validation_results()
 
@@ -263,8 +267,9 @@ class HostTrainIoGen(RunnableComponent):
         print("Validation finished. Results:")
         print(
             f"Correct/Total: {self._correct_validation}/{self._total_samples} "
-            f"({self._correct_validation/self._total_samples:.2f}%)"
+            f"({100 * self._correct_validation/self._total_samples:.2f}%)"
         )
+        self._stop_signal.set()
 
     async def _host_process_validation_type2(self):
         categories = glob.glob(self._train_data_path + "/val/*")
@@ -347,12 +352,15 @@ class HostTrainIoGen(RunnableComponent):
         for dev_id in range(self._device_count):
             await self._irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
 
-        while True:
-            await asyncio.sleep(0)
-            await self._irq_handler.poll()
+        await self._internal_stop_signal.wait()
 
-    def start_job(self):
+    async def start_job(self):
         self._start_signal.set()
+        await self._stop_signal.wait()
+
+    async def empty_loop(self):
+        while True:
+            await asyncio.sleep(0.2)
 
     async def _run(self):
         tasks = [
@@ -361,9 +369,10 @@ class HostTrainIoGen(RunnableComponent):
         await self._change_status_to_running()
         tasks.append(asyncio.create_task(self._stop_signal.wait()))
         await asyncio.gather(*tasks)
-        pass
 
     async def _stop(self):
+        await self._irq_handler.shutdown()
+        self._internal_stop_signal.set()
         await self._processor_to_cache_fifo.response.put(None)
 
 
@@ -459,8 +468,8 @@ class CxlImageClassificationHost(RunnableComponent):
     def append_dev_mem_range(self, base, size):
         self._host_simple_processor.append_dev_mem_range(base, size)
 
-    def start_job(self):
-        self._host_simple_processor.start_job()
+    async def start_job(self):
+        await self._host_simple_processor.start_job()
 
     def set_device_count(self, dev_count: int):
         self._host_simple_processor.set_device_count(dev_count)

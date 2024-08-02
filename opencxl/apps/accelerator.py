@@ -252,7 +252,7 @@ class MyType1Accelerator(RunnableComponent):
         cacheline = await self._cxl_type1_device.cxl_cache_read(image_addr, image_end)
         imgbuf.write(cacheline)
 
-        im = Image.open(imgbuf)
+        im = Image.open(imgbuf).convert("RGB")
 
         return im
 
@@ -353,11 +353,6 @@ class MyType1Accelerator(RunnableComponent):
         print("Training Done!!!")
         await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
 
-    async def _main_loop(self):
-        while True:
-            await sleep(0)
-            pass
-
     async def _app_shutdown(self):
         logger.info("Removing accelerator directory")
         os.rmdir(self.accel_dirname)
@@ -375,7 +370,6 @@ class MyType1Accelerator(RunnableComponent):
         await self._change_status_to_running()
         tasks.append(t)
         self._temp_tasks = [t]
-        create_task(self._main_loop())
         await gather(*tasks)
 
     async def _stop(self):

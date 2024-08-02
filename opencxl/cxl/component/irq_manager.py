@@ -95,13 +95,15 @@ class IrqManager(RunnableComponent):
     async def _irq_handler(self, reader: StreamReader, writer: StreamWriter):
         print(f"Creating irq handler for dev {self._device_id}")
         while True:
-            # if not self._run_status:
-            #     print("_irq_handler exiting")
-            #     return
+            if not self._run_status:
+                print("_irq_handler exiting")
+                return
+            print(id(reader))
+            await sleep(1)
             msg = await reader.readexactly(IRQ_WIDTH)
-            # if not msg:
-            #     logger.debug(self._create_message("Irq enable connection broken"))
-            #     return
+            if not msg:
+                logger.debug(self._create_message("Irq enable connection broken"))
+                return
             msg_int = int.from_bytes(msg)
             remote_dev_id = msg_int & 0xFF
             if not self._server:
@@ -115,7 +117,7 @@ class IrqManager(RunnableComponent):
             if irq not in self._msg_to_interrupt_event[remote_dev_id]:
                 raise RuntimeError(f"Invalid IRQ: {irq} for device: {remote_dev_id}")
 
-            await self._msg_to_interrupt_event[remote_dev_id][irq](remote_dev_id)
+            create_task(self._msg_to_interrupt_event[remote_dev_id][irq](remote_dev_id))
             print(f"IRQ handled for {irq.name}")
 
     async def poll(self):
@@ -154,6 +156,9 @@ class IrqManager(RunnableComponent):
         self._run_status = True
         t = create_task(self._irq_handler(reader, writer))
         return t
+
+    async def shutdown(self):
+        self._run_status = False
 
     async def _run(self):
         try:
