@@ -205,7 +205,7 @@ class MyType1Accelerator(RunnableComponent):
         with open(f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv", "wb") as md_file:
             print(f"addr: 0x{metadata_addr:x}")
             print(f"end: 0x{metadata_end:x}")
-            data = self._cxl_type1_device.cxl_cache_read(metadata_addr, metadata_size)
+            data = await self._cxl_type1_device.cxl_cache_read(metadata_addr, metadata_size)
             md_file.write(data)
             # for cacheline_offset in range(metadata_addr, metadata_end, CACHELINE_LENGTH):
             #     cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
