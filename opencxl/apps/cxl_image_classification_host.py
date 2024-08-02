@@ -11,7 +11,7 @@ import glob
 import os
 import json
 from dataclasses import dataclass, field
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, cast
 from random import sample
 
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
@@ -62,7 +62,7 @@ class HostTrainIoGenConfig:
 
 
 class HostTrainIoGen(RunnableComponent):
-    def __init__(self, config: HostTrainIoGenConfig, sample_from_each_category: int = 5):
+    def __init__(self, config: HostTrainIoGenConfig, sample_from_each_category: int = 1):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
         self._host_name = config.host_name
         self._processor_to_cache_fifo = config.processor_to_cache_fifo
@@ -96,11 +96,14 @@ class HostTrainIoGen(RunnableComponent):
         self._device_count = dev_count
 
     # pylint: disable=duplicate-code
-    async def load(self, address: int, size: int) -> MemoryResponse:
-        packet = MemoryRequest(MEMORY_REQUEST_TYPE.READ, address, size)
-        await self._processor_to_cache_fifo.request.put(packet)
-        packet = await self._processor_to_cache_fifo.response.get()
-        return packet
+    async def load(self, address: int, size: int) -> bytes:
+        end = address + size
+        result = b""
+        for cacheline_offset in range(address, address + size, 64):
+            cacheline = await self._cache_controller.cache_coherent_load(cacheline_offset, 64)
+            chunk_size = min(64, (end - cacheline_offset))
+            result += cacheline.to_bytes(chunk_size, "little")
+        return result
 
     async def store(self, address: int, size: int, value: int):
         if address % 64 != 0 or size % 64 != 0:
@@ -206,7 +209,7 @@ class HostTrainIoGen(RunnableComponent):
                         event = asyncio.Event()
                         self._irq_handler.register_interrupt_handler(
                             Irq.ACCEL_VALIDATION_FINISHED,
-                            self._save_validation_result_type1(dev_id, pic_id, event),
+                            self._save_validation_result_type1(pic_id, event),
                             dev_id,
                         )
                         await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
@@ -219,15 +222,15 @@ class HostTrainIoGen(RunnableComponent):
                     pic_id += 1
         self._merge_validation_results()
 
-    def _save_validation_result_type1(self, dev_id: int, pic_id: int, event: asyncio.Event):
-        async def _func(reader_id: int):
+    def _save_validation_result_type1(self, pic_id: int, event: asyncio.Event):
+        async def _func(dev_id: int):
+            print(f"saving validation results pic: {pic_id}, dev: {dev_id}")
             # We can use a fixed host_result_addr, say 0x0A000000
             # Only length is needed
-            host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x820), 8)
-            host_result_len = await self.load(self.to_device_mmio_addr(dev_id, 0x828), 8)
-            data = await self.load(host_result_addr, host_result_len)
-            data_bytes = data.data.to_bytes(host_result_len, "little")
-            validate_result = json.loads(data_bytes)
+            host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1820), 8)
+            host_result_len = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1828), 8)
+            data_bytes = await self.load(host_result_addr, host_result_len)
+            validate_result = json.loads(data_bytes.decode())
             self._validation_results[pic_id].append(validate_result)
             event.set()
 
@@ -316,7 +319,6 @@ class HostTrainIoGen(RunnableComponent):
         for dev_id in range(self._device_count):
             print(f"IRQ_SENT to {dev_id} @ 0x{self.to_device_mmio_addr(dev_id, 0x1800):x}")
             await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, csv_data_mem_loc)
-            print(f"IRQ_SENT S2")
             await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
 
         while True:
@@ -341,7 +343,6 @@ class HostTrainIoGen(RunnableComponent):
 
         for dev_id in range(self._device_count):
             await self._irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
-            print("IRQ_SENT S4")
 
         while True:
             await asyncio.sleep(0)

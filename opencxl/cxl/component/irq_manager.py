@@ -136,7 +136,10 @@ class IrqManager(RunnableComponent):
         """
         Sends an IRQ request as the client.
         """
-        print(f"Sending to device {device}")
+        name = "host"
+        if not self._server:
+            name = f"dev {self._device_id}"
+        print(f"{name} sending to device {device}")
         reader, writer = self._connections[device]
         val_w_dev_id = request.value << 8 | self._device_id
         writer.write(val_w_dev_id.to_bytes(length=IRQ_WIDTH))

@@ -218,15 +218,18 @@ class MyType1Accelerator(RunnableComponent):
         with open(f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv", "wb") as md_file:
             print(f"addr: 0x{metadata_addr:x}")
             print(f"end: 0x{metadata_end:x}")
-            for cacheline_offset in range(metadata_addr, metadata_end, CACHELINE_LENGTH):
-                cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
-                cacheline = cast(int, cacheline)
-                chunk_size = min(CACHELINE_LENGTH, (metadata_end - cacheline_offset))
-                if chunk_size != 64:
-                    mask = (1 << (chunk_size * 8)) - 1
-                    cacheline &= mask
-                chunk = cacheline.to_bytes(chunk_size, "little")
-                md_file.write(chunk)
+            data = self._cxl_type1_device.cxl_cache_read(metadata_addr, metadata_size)
+            md_file.write(data)
+            # for cacheline_offset in range(metadata_addr, metadata_end, CACHELINE_LENGTH):
+            #     cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
+            #     cacheline = cast(int, cacheline)
+            #     chunk_size = min(CACHELINE_LENGTH, (metadata_end - cacheline_offset))
+            #     if chunk_size != 64:
+            #         mask = (1 << (chunk_size * 8)) - 1
+            #         cacheline &= mask
+            #     chunk = cacheline.to_bytes(chunk_size, "little")
+            #     md_file.write(chunk)
+
         for _ in range(100):
             await sleep(0)
 
@@ -246,11 +249,9 @@ class MyType1Accelerator(RunnableComponent):
         im = None
 
         imgbuf = BytesIO()
-        for cacheline_offset in range(image_addr, image_end, CACHELINE_LENGTH):
-            cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
-            cacheline = cast(int, cacheline)
-            chunk_size = min(CACHELINE_LENGTH, (image_end - cacheline_offset))
-            imgbuf.write(cacheline.to_bytes(chunk_size, "little"))
+        cacheline = await self._cxl_type1_device.cxl_cache_read(image_addr, image_end)
+        imgbuf.write(cacheline)
+
         im = Image.open(imgbuf)
 
         return im
@@ -259,31 +260,45 @@ class MyType1Accelerator(RunnableComponent):
         # pylint: disable=E1101
         im = await self._get_test_image()
         tens = cast(torch.Tensor, self.transform(im))
-
+        print(tens.shape)
         # Model expects a 4-dimensional tensor
         tens = torch.unsqueeze(tens, 0)
 
         pred_logit = self.model(tens)
-        predicted_probs = torch.softmax(pred_logit, dim=1)
+        predicted_probs = torch.softmax(pred_logit, dim=1)[0]
 
         # 10 predicted classes
         # TODO: avoid magic number usage
-        pred_kv = {self._test_dataset.classes[i]: predicted_probs[i] for i in range(0, 10)}
+        pred_kv = {self._test_dataset.classes[i]: predicted_probs[i].item() for i in range(0, 10)}
 
         json_asenc = str.encode(json.dumps(pred_kv))
         bytes_size = len(json_asenc)
 
-        json_asint = int.from_bytes(json_asenc)
+        json_asint = int.from_bytes(json_asenc, "little")
 
         RESULTS_HPA = 0x900  # Arbitrarily chosen
 
-        await self._cxl_type1_device.cxl_cache_writelines(RESULTS_HPA, json_asint, bytes_size)
+        rounded_bytes_size = (((bytes_size - 1) // 64) + 1) * 64
+        await self._cxl_type1_device.cxl_cache_write(
+            RESULTS_HPA, max(64, rounded_bytes_size), json_asint
+        )
 
-        HOST_VECTOR_ADDR = 0x820
-        HOST_VECTOR_SIZE = 0x828
+        HOST_VECTOR_ADDR = 0x1820
+        HOST_VECTOR_SIZE = 0x1828
 
         await self._cxl_type1_device.write_mmio(HOST_VECTOR_ADDR, 8, RESULTS_HPA)
         await self._cxl_type1_device.write_mmio(HOST_VECTOR_SIZE, 8, bytes_size)
+
+        while True:
+            json_addr_rb = await self._cxl_type1_device.read_mmio(HOST_VECTOR_ADDR, 8)
+            json_size_rb = await self._cxl_type1_device.read_mmio(HOST_VECTOR_SIZE, 8)
+
+            if json_addr_rb == RESULTS_HPA and json_size_rb == bytes_size:
+                break
+            await sleep(0.2)
+
+        # # Debug
+        # await self._cxl_type1_device.cxl_cache_writeline(RESULTS_HPA, json_asint & ((1 << 64) - 1))
 
         # Done with eval
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
