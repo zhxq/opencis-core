@@ -70,17 +70,21 @@ class MyType1Accelerator(RunnableComponent):
         )
 
         self.accel_dirname = f"/Users/zhxq/Downloads/imagenette2-160/T1Accel@{self._label}"
+        if os.path.exists(self.accel_dirname) and os.path.isdir(self.accel_dirname):
+            shutil.rmtree(self.accel_dirname)
+        Path(self.accel_dirname).mkdir(parents=True, exist_ok=True)
+        self._train_folder = f"{self.accel_dirname}{os.path.sep}train"
+        self._val_folder = f"{self.accel_dirname}{os.path.sep}val"
         os.symlink(
             src="/Users/zhxq/Downloads/imagenette2-160/train",
-            dst=f"{self.accel_dirname}{os.path.sep}train",
+            dst=self._train_folder,
             target_is_directory=True,
         )
         os.symlink(
             src="/Users/zhxq/Downloads/imagenette2-160/val",
-            dst=f"{self.accel_dirname}{os.path.sep}val",
+            dst=self._val_folder,
             target_is_directory=True,
         )
-        Path(self.accel_dirname).mkdir(parents=True, exist_ok=True)
         # Model setup
         self.model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
 
@@ -98,15 +102,13 @@ class MyType1Accelerator(RunnableComponent):
         )
 
         self._train_dataset = datasets.ImageFolder(
-            root=f"{self.accel_dirname}{os.path.sep}train", transform=self.transform
+            root=self._train_folder, transform=self.transform
         )
         self._train_dataloader = DataLoader(
             self._train_dataset, batch_size=32, shuffle=True, num_workers=4
         )
 
-        self._test_dataset = datasets.ImageFolder(
-            root=f"{self.accel_dirname}{os.path.sep}val", transform=self.transform
-        )
+        self._test_dataset = datasets.ImageFolder(root=self._val_folder, transform=self.transform)
         self._test_dataloader = DataLoader(
             self._train_dataset, batch_size=10, shuffle=True, num_workers=4
         )

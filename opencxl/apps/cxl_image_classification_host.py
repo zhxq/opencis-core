@@ -62,7 +62,7 @@ class HostTrainIoGenConfig:
 
 
 class HostTrainIoGen(RunnableComponent):
-    def __init__(self, config: HostTrainIoGenConfig, sample_from_each_category: int = 1):
+    def __init__(self, config: HostTrainIoGenConfig, sample_from_each_category: int = 2):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
         self._host_name = config.host_name
         self._processor_to_cache_fifo = config.processor_to_cache_fifo
@@ -244,13 +244,16 @@ class HostTrainIoGen(RunnableComponent):
         return _func
 
     def _merge_validation_results(self):
-        merged_result = {}
         max_v = 0
         max_k = 0
         for pic_id in range(self._total_samples):
+            merged_result = {}
             assert len(self._validation_results[pic_id]) == self._device_count
             real_category = self._sampled_file_categories[pic_id]
+            print(f"Picture {pic_id}:")
             for dev_result in self._validation_results[pic_id]:
+                print("Result from a device: ")
+                print(dev_result)
                 for k, v in dev_result.items():
                     if k not in merged_result:
                         merged_result[k] = v
@@ -259,6 +262,8 @@ class HostTrainIoGen(RunnableComponent):
                     if merged_result[k] > max_v:
                         max_v = merged_result[k]
                         max_k = k
+            print(f"Merged result for pic {pic_id}:")
+            print(merged_result)
             if max_k == real_category:
                 self._correct_validation += 1
 
