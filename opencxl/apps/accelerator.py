@@ -332,19 +332,20 @@ class MyType1Accelerator(RunnableComponent):
     async def _run(self):
         tasks = [
             create_task(self._sw_conn_client.run()),
-            create_task(self._irq_manager.run()),
             create_task(self._cxl_type1_device.run()),
+            create_task(self._irq_manager.run()),
+            create_task(self._stop_signal.wait()),
         ]
         await self._sw_conn_client.wait_for_ready()
-        t = await self._irq_manager.start_connection()
-        await self._irq_manager.wait_for_ready()
         await self._cxl_type1_device.wait_for_ready()
+        await self._irq_manager.wait_for_ready()
+        await self._irq_manager.start_connection()
         await self._change_status_to_running()
-        tasks.append(t)
-        self._temp_tasks = [t]
         await gather(*tasks)
 
     async def _stop(self):
+        print("!!!!!Device trying to stop")
+        self._stop_signal.set()
         tasks = [
             create_task(self._sw_conn_client.stop()),
             create_task(self._cxl_type1_device.stop()),
@@ -352,6 +353,7 @@ class MyType1Accelerator(RunnableComponent):
         ]
         await gather(*tasks)
         await self._app_shutdown()
+        print("!!!!!Device stopped!!")
 
 
 class MyType2Accelerator(RunnableComponent):

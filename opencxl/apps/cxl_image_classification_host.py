@@ -353,6 +353,7 @@ class HostTrainIoGen(RunnableComponent):
             await self._irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
 
         await self._internal_stop_signal.wait()
+        print("_host_process_llc_iogen finished!!!!!!!!!!!")
 
     async def start_job(self):
         self._start_signal.set()
@@ -494,6 +495,7 @@ class CxlImageClassificationHost(RunnableComponent):
         await asyncio.gather(*run_tasks)
 
     async def _stop(self):
+        print("!!!!!Host trying to stop")
         tasks = [
             asyncio.create_task(self._root_port_client_manager.stop()),
             asyncio.create_task(self._root_complex.stop()),
@@ -502,3 +504,4 @@ class CxlImageClassificationHost(RunnableComponent):
             asyncio.create_task(self._irq_handler.stop()),
         ]
         await asyncio.gather(*tasks)
+        print("!!!!!Host stopped!!")

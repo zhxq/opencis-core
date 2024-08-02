@@ -151,8 +151,8 @@ class IrqManager(RunnableComponent):
         self._connections.append((reader, writer))
         print("Device to Host IRQ Connection created!")
         self._run_status = True
-        t = create_task(self._irq_handler(reader, writer))
-        return t
+
+        self._irq_handlers.append(create_task(self._irq_handler(reader, writer)))
 
     async def shutdown(self):
         self._run_status = False
@@ -182,5 +182,7 @@ class IrqManager(RunnableComponent):
         self._end_signal.set()
         for task in self._tasks:
             task.cancel()
+        print("IRQ tasks cancelled")
         for handler in self._irq_handlers:
             handler.cancel()
+        print("IRQ handlers cancelled")

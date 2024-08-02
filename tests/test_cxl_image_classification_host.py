@@ -32,6 +32,7 @@ from opencxl.cxl.component.virtual_switch_manager import (
 )
 from opencxl.apps.accelerator import MyType1Accelerator, MyType2Accelerator
 from opencxl.drivers.cxl_mem_driver import CxlMemDriver
+from opencxl.util.component import RunnableComponent
 from opencxl.util.number_const import MB
 from opencxl.util.logger import logger
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver
@@ -159,18 +160,34 @@ async def test_cxl_host_type1_image_classification_host_ete():
 
     await asyncio.gather(*test_tasks)
 
-    # await _stop_signal.wait()
+    async def comp_stop(comp: RunnableComponent):
+        print(f"Stopping {type(comp)}!!!!!!!!!!!!!!")
+        await comp.stop()
+        print(f"{type(comp)} stopped!!!!!!!!!!!!!!")
+
+    # stop_tasks = [
+    #     asyncio.create_task(sw_conn_manager.stop()),
+    #     asyncio.create_task(physical_port_manager.stop()),
+    #     asyncio.create_task(virtual_switch_manager.stop()),
+    #     asyncio.create_task(host.stop()),
+    #     asyncio.create_task(host_manager.stop()),
+    # ]
+    # for dev in dev_list:
+    #     stop_tasks.append(asyncio.create_task(dev.stop()))
 
     stop_tasks = [
-        asyncio.create_task(sw_conn_manager.stop()),
-        asyncio.create_task(physical_port_manager.stop()),
-        asyncio.create_task(virtual_switch_manager.stop()),
-        asyncio.create_task(host.stop()),
-        asyncio.create_task(host_manager.stop()),
+        asyncio.create_task(comp_stop(sw_conn_manager)),
+        asyncio.create_task(comp_stop(physical_port_manager)),
+        asyncio.create_task(comp_stop(virtual_switch_manager)),
+        asyncio.create_task(comp_stop(host)),
+        asyncio.create_task(comp_stop(host_manager)),
     ]
     for dev in dev_list:
-        stop_tasks.append(asyncio.create_task(dev.stop()))
+        stop_tasks.append(asyncio.create_task(comp_stop(dev)))
+
+    print("Trying to stop!!!!!!!!!!!!!!!!!!!!!1!")
     await asyncio.gather(*stop_tasks)
+    print("All stopped!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     await asyncio.gather(*start_tasks)
 
 
