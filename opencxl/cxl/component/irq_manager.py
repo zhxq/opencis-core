@@ -46,7 +46,7 @@ IRQ_WIDTH = 2  # in bytes
 
 
 class IrqManager(RunnableComponent):
-    _msg_to_interrupt_event: dict[Irq, Callable]
+    _msg_to_interrupt_event: dict[int, dict[Irq, Callable]]
     _callbacks: list[Callable]
     _server_task: Task
     _callback_tasks: list[Task]
@@ -75,18 +75,22 @@ class IrqManager(RunnableComponent):
         self._writer_id = {}
         self._device_id = device_id
 
-    def register_interrupt_handler(self, irq_msg: Irq, irq_recv_cb: Callable):
+    def register_interrupt_handler(self, irq_msg: Irq, irq_recv_cb: Callable, dev_id: int = 0):
         """
         Registers a callback on the arrival of a specific interrupt.
-        Cannot be done while IrqManager is running.
+        dev_id will be locked to 0 for a client.
         """
+        if not self._server:
+            dev_id = 0
 
         async def _callback(dev_id):
             await irq_recv_cb(dev_id)
 
         cb_func = _callback
-        print(f"Registering interrupt for IRQ {irq_msg.name}")
-        self._msg_to_interrupt_event[irq_msg] = cb_func
+        print(f"Registering interrupt for IRQ {irq_msg.name} for dev {dev_id}")
+        if dev_id not in self._msg_to_interrupt_event:
+            self._msg_to_interrupt_event[dev_id] = {}
+        self._msg_to_interrupt_event[dev_id][irq_msg] = cb_func
 
     async def _irq_handler(self, reader: StreamReader, writer: StreamWriter):
         print(f"Creating irq handler for dev {self._device_id}")
@@ -100,13 +104,18 @@ class IrqManager(RunnableComponent):
                 return
             msg_int = int.from_bytes(msg)
             remote_dev_id = msg_int & 0xFF
+            if not self._server:
+                remote_dev_id = 0
             irq_num = msg_int >> 8
             irq = Irq(irq_num)
             print(f"IRQ received for {irq.name}")
-            if irq not in self._msg_to_interrupt_event:
-                raise RuntimeError(f"Invalid IRQ: {irq}")
+            if remote_dev_id not in self._msg_to_interrupt_event:
+                raise RuntimeError(f"No IRQ registered for device: {remote_dev_id}")
 
-            await self._msg_to_interrupt_event[irq](remote_dev_id)
+            if irq not in self._msg_to_interrupt_event[remote_dev_id]:
+                raise RuntimeError(f"Invalid IRQ: {irq} for device: {remote_dev_id}")
+
+            await self._msg_to_interrupt_event[remote_dev_id][irq](remote_dev_id)
             print(f"IRQ handled for {irq.name}")
 
     async def poll(self):

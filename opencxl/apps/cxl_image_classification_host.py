@@ -151,7 +151,9 @@ class HostTrainIoGen(RunnableComponent):
         self._validation_results: List[List[Dict[str, float]]] = [[] for _ in self._total_samples]
         pic_id = 0
         pic_data_mem_loc = 0x00008000
+        print("Preparing")
         for c in categories:
+            print(f"Category: {c}")
             category_pics = glob.glob(f"{c}/*.JPEG")
             sample_pics = sample(category_pics, self._sample_from_each_category)
             category_name = c.split(os.path.sep)[-1]
@@ -176,15 +178,32 @@ class HostTrainIoGen(RunnableComponent):
                         # In fact, we can use a fixed host memory addr
                         # and we only need to write the length to the device
                         await self.write_mmio(
-                            self.to_device_mmio_addr(dev_id, 0x810), 8, pic_data_mem_loc
+                            self.to_device_mmio_addr(dev_id, 0x1810), 8, pic_data_mem_loc
                         )
                         await self.write_mmio(
-                            self.to_device_mmio_addr(dev_id, 0x818), 8, pic_data_len
+                            self.to_device_mmio_addr(dev_id, 0x1818), 8, pic_data_len
                         )
+
+                        while True:
+                            pic_data_mem_loc_rb = await self.read_mmio(
+                                self.to_device_mmio_addr(dev_id, 0x1810), 8
+                            )
+                            pic_data_len_rb = await self.read_mmio(
+                                self.to_device_mmio_addr(dev_id, 0x1818), 8
+                            )
+
+                            if (
+                                pic_data_mem_loc_rb == pic_data_mem_loc
+                                and pic_data_len_rb == pic_data_len
+                            ):
+                                break
+                            await asyncio.sleep(0.2)
+
                         event = asyncio.Event()
                         self._irq_handler.register_interrupt_handler(
                             Irq.ACCEL_VALIDATION_FINISHED,
                             self._save_validation_result_type1(dev_id, pic_id, event),
+                            dev_id,
                         )
                         await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
                         print("send_irq_request done")
@@ -305,9 +324,10 @@ class HostTrainIoGen(RunnableComponent):
             await asyncio.sleep(0.2)
 
         if self._dev_type == CXL_COMPONENT_TYPE.T1:
-            self._irq_handler.register_interrupt_handler(
-                Irq.ACCEL_TRAINING_FINISHED, self._host_check_start_validation_type1
-            )
+            for i in range(self._device_count):
+                self._irq_handler.register_interrupt_handler(
+                    Irq.ACCEL_TRAINING_FINISHED, self._host_check_start_validation_type1, i
+                )
         elif self._dev_type == CXL_COMPONENT_TYPE.T2:
             self._irq_handler.register_interrupt_handler(
                 Irq.ACCEL_TRAINING_FINISHED, self._host_process_validation_type2
