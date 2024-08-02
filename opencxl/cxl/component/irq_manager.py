@@ -70,6 +70,8 @@ class IrqManager(RunnableComponent):
         self._new_irq_tasks = []
         self._lock = Lock()
         self._end_signal = Event()
+        self._reader_id = {}
+        self._writer_id = {}
 
     def register_interrupt_handler(self, irq_msg: Irq, irq_recv_cb: Callable):
         """
@@ -77,8 +79,8 @@ class IrqManager(RunnableComponent):
         Cannot be done while IrqManager is running.
         """
 
-        async def _callback():
-            await irq_recv_cb()
+        async def _callback(dev_id):
+            await irq_recv_cb(dev_id)
 
         cb_func = _callback
 
@@ -91,26 +93,31 @@ class IrqManager(RunnableComponent):
             if not self._run_status:
                 print("_irq_handler exiting")
                 return
-            msg = await reader.readexactly(IRQ_WIDTH)
+            msg = await reader.readexactly(1)
             if not msg:
                 logger.debug(self._create_message("Irq enable connection broken"))
                 return
+            print(msg)
             irq = Irq(int.from_bytes(msg))
+            print(f"IRQ received for {irq.name}")
             if irq not in self._msg_to_interrupt_event:
                 raise RuntimeError(f"Invalid IRQ: {irq}")
 
-            await self._msg_to_interrupt_event[irq]()
+            await self._msg_to_interrupt_event[irq](id(reader))
             print(f"IRQ handled for {irq.name}")
 
     async def poll(self):
-        print("Polling")
+        # print("Polling")
         await sleep(0)
 
     async def _create_server(self):
         async def _new_conn(reader: StreamReader, writer: StreamWriter):
             self._connections.append((reader, writer))
+            conn_idx = len(self._connections) - 1
+            self._reader_id[id(reader)] = conn_idx
+            self._writer_id[id(writer)] = conn_idx
 
-        server = await start_server(_new_conn, self._addr, self._port, limit=10)
+        server = await start_server(_new_conn, self._addr, self._port, limit=1)
         print(f"Starting server on {self._addr}:{self._port}")
         return server
 
@@ -125,7 +132,7 @@ class IrqManager(RunnableComponent):
 
     async def start_connection(self):
         print("Device to Host IRQ Connection started!")
-        reader, writer = await open_connection(self._addr, self._port, limit=10)
+        reader, writer = await open_connection(self._addr, self._port, limit=1)
         self._connections.append((reader, writer))
         print("Device to Host IRQ Connection created!")
         self._run_status = True
@@ -137,7 +144,9 @@ class IrqManager(RunnableComponent):
             if self._server:
                 server = await self._create_server()
                 self._server_task = create_task(server.serve_forever())
+
                 self._tasks.append(self._server_task)
+                # self._tasks.append(self._handler_task)
             else:
                 # self._client_task = create_task(self._irq_handler())
                 # self._tasks.append(self._client_task)

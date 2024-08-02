@@ -191,31 +191,31 @@ class MyType1Accelerator(RunnableComponent):
 
         metadata_end = metadata_addr + metadata_size
 
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
+        # await sleep(0)
 
         with open(f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv", "wb") as md_file:
             print(f"addr: 0x{metadata_addr:x}")
@@ -257,7 +257,7 @@ class MyType1Accelerator(RunnableComponent):
 
         return im
 
-    async def _validate_model(self):
+    async def _validate_model(self, reader_id):
         # pylint: disable=E1101
         im = await self._get_test_image()
         tens = cast(torch.Tensor, self.transform(im))
@@ -289,33 +289,8 @@ class MyType1Accelerator(RunnableComponent):
 
         # Done with eval
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
-        await sleep(0)
 
-    async def _run_app(self):
+    async def _run_app(self, reader_id):
         print("app running")
 
         # chdir could cause issues! The memory won't be able to be read
@@ -387,7 +362,7 @@ class MyType1Accelerator(RunnableComponent):
         await self._change_status_to_running()
         tasks.append(t)
         self._temp_tasks = [t]
-        # create_task(self._main_loop())
+        create_task(self._main_loop())
         await gather(*tasks)
 
     async def _stop(self):

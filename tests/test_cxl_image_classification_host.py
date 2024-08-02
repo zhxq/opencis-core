@@ -107,18 +107,25 @@ async def test_cxl_host_type1_image_classification_host_ete():
         asyncio.create_task(physical_port_manager.run()),
         asyncio.create_task(virtual_switch_manager.run()),
         asyncio.create_task(host_manager.run()),
-        asyncio.create_task(host.run()),
     ]
-    for dev in dev_list:
-        start_tasks.append(asyncio.create_task(dev.run()))
 
     wait_tasks = [
         asyncio.create_task(sw_conn_manager.wait_for_ready()),
         asyncio.create_task(physical_port_manager.wait_for_ready()),
         asyncio.create_task(virtual_switch_manager.wait_for_ready()),
         asyncio.create_task(host_manager.wait_for_ready()),
-        asyncio.create_task(host.wait_for_ready()),
     ]
+    await asyncio.gather(*wait_tasks)
+
+    # host
+    asyncio.create_task(host.run())
+    t = asyncio.create_task(host.wait_for_ready())
+    await asyncio.gather(t)
+
+    # dev
+    for dev in dev_list:
+        start_tasks.append(asyncio.create_task(dev.run()))
+    wait_tasks = []
     for dev in dev_list:
         wait_tasks.append(asyncio.create_task(dev.wait_for_ready()))
     await asyncio.gather(*wait_tasks)
@@ -252,21 +259,21 @@ async def test_cxl_host_type1_complex_host_ete():
     cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())
 
     start_tasks = [
-        asyncio.create_task(host_manager.run()),
-        asyncio.create_task(host.run()),
         asyncio.create_task(sw_conn_manager.run()),
         asyncio.create_task(physical_port_manager.run()),
         asyncio.create_task(virtual_switch_manager.run()),
+        asyncio.create_task(host_manager.run()),
+        asyncio.create_task(host.run()),
     ]
     for dev in dev_list:
         start_tasks.append(asyncio.create_task(dev.run()))
 
     wait_tasks = [
-        asyncio.create_task(host_manager.wait_for_ready()),
-        asyncio.create_task(host.wait_for_ready()),
         asyncio.create_task(sw_conn_manager.wait_for_ready()),
         asyncio.create_task(physical_port_manager.wait_for_ready()),
         asyncio.create_task(virtual_switch_manager.wait_for_ready()),
+        asyncio.create_task(host_manager.wait_for_ready()),
+        asyncio.create_task(host.wait_for_ready()),
     ]
     for dev in dev_list:
         wait_tasks.append(asyncio.create_task(dev.wait_for_ready()))

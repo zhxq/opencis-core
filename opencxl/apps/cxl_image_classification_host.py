@@ -137,7 +137,7 @@ class HostTrainIoGen(RunnableComponent):
         assert addr < self._dev_mem_ranges[device][1]
         return self._dev_mem_ranges[device][0] + addr
 
-    async def _host_process_validation_type1(self):
+    async def _host_process_validation_type1(self, reader_id: int):
         print("_host_process_validation_type1 INVOKED!!!!!")
         categories = glob.glob(self._train_data_path + "/val/*")
         self._total_samples = len(categories) * self._sample_from_each_category
@@ -190,7 +190,7 @@ class HostTrainIoGen(RunnableComponent):
         self._merge_validation_results()
 
     def _save_validation_result_type1(self, dev_id: int, pic_id: int, event: asyncio.Event):
-        async def _func():
+        async def _func(reader_id: int):
             # We can use a fixed host_result_addr, say 0x0A000000
             # Only length is needed
             host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x820), 8)
@@ -279,45 +279,23 @@ class HostTrainIoGen(RunnableComponent):
         csv_data_int = int.from_bytes(csv_data, "little")
         csv_data_len = len(csv_data)
         csv_data_len_rounded = (((csv_data_len - 1) // 64) + 1) * 64
-        # print("Storing data...")
-        # await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
-        # print("Data was stored!")
+        print("Storing data...")
+        await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
+        print("Data was stored!")
 
         for dev_id in range(self._device_count):
             print(f"IRQ_SENT to {dev_id} @ 0x{self.to_device_mmio_addr(dev_id, 0x1800):x}")
-            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 4, csv_data_mem_loc)
+            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, csv_data_mem_loc)
             print(f"IRQ_SENT S2")
-            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 4, csv_data_len)
+            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
 
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
+        while True:
+            csv_data_mem_loc_rb = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8)
+            csv_data_len_rb = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8)
+
+            if csv_data_mem_loc_rb == csv_data_mem_loc and csv_data_len_rb == csv_data_len:
+                break
+            await asyncio.sleep(0.2)
 
         if self._dev_type == CXL_COMPONENT_TYPE.T1:
             self._irq_handler.register_interrupt_handler(
