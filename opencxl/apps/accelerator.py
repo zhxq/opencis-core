@@ -9,6 +9,7 @@
 from asyncio import gather, create_task, Event, sleep
 from io import BytesIO
 from typing import cast
+import shutil
 
 import json
 import os
@@ -189,32 +190,6 @@ class MyType1Accelerator(RunnableComponent):
 
         metadata_end = metadata_addr + metadata_size
 
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-        # await sleep(0)
-
         with open(f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv", "wb") as md_file:
             print(f"addr: 0x{metadata_addr:x}")
             print(f"end: 0x{metadata_end:x}")
@@ -229,9 +204,6 @@ class MyType1Accelerator(RunnableComponent):
             #         cacheline &= mask
             #     chunk = cacheline.to_bytes(chunk_size, "little")
             #     md_file.write(chunk)
-
-        for _ in range(100):
-            await sleep(0)
 
         print("Finished writing file")
 
@@ -355,7 +327,7 @@ class MyType1Accelerator(RunnableComponent):
 
     async def _app_shutdown(self):
         logger.info("Removing accelerator directory")
-        os.rmdir(self.accel_dirname)
+        shutil.rmtree(self.accel_dirname)
 
     async def _run(self):
         tasks = [

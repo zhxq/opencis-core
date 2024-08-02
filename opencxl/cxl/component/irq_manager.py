@@ -49,7 +49,6 @@ class IrqManager(RunnableComponent):
     _msg_to_interrupt_event: dict[int, dict[Irq, Callable]]
     _callbacks: list[Callable]
     _server_task: Task
-    _callback_tasks: list[Task]
 
     def __init__(
         self,
@@ -67,8 +66,7 @@ class IrqManager(RunnableComponent):
         self._server = server
         self._connections: list[tuple[StreamReader, StreamWriter]] = []
         self._tasks: list[Task] = []
-        self._callback_tasks = []
-        self._irq_handlers = []
+        self._irq_handlers: list[Task] = []
         self._lock = Lock()
         self._end_signal = Event()
         self._reader_id = {}
@@ -98,8 +96,7 @@ class IrqManager(RunnableComponent):
             if not self._run_status:
                 print("_irq_handler exiting")
                 return
-            print(id(reader))
-            await sleep(1)
+
             msg = await reader.readexactly(IRQ_WIDTH)
             if not msg:
                 logger.debug(self._create_message("Irq enable connection broken"))
@@ -173,9 +170,8 @@ class IrqManager(RunnableComponent):
                 # self._tasks.append(self._client_task)
                 pass
             await self._change_status_to_running()
-            self._tasks.append(create_task(await self._end_signal.wait()))
-            while True:
-                await sleep(0)
+            self._tasks.append(create_task(self._end_signal.wait()))
+
             await gather(*self._tasks)
             # await gather(*self._callback_tasks)
         except CancelledError:
@@ -183,7 +179,8 @@ class IrqManager(RunnableComponent):
 
     async def _stop(self):
         print("IRQ Manager Stopping")
-        for callback_task in self._callback_tasks:
-            callback_task.cancel()
+        self._end_signal.set()
         for task in self._tasks:
             task.cancel()
+        for handler in self._irq_handlers:
+            handler.cancel()
