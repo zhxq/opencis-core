@@ -47,9 +47,8 @@ async def test_cxl_host_type1_image_classification_host_ete():
     host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 165
     util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 166
     switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 167
-    _stop_signal = asyncio.Event()
 
-    NUM_DEVS = 1
+    NUM_DEVS = 2
 
     port_configs = [PortConfig(PORT_TYPE.USP)]
 
@@ -160,34 +159,17 @@ async def test_cxl_host_type1_image_classification_host_ete():
 
     await asyncio.gather(*test_tasks)
 
-    async def comp_stop(comp: RunnableComponent):
-        print(f"Stopping {type(comp)}!!!!!!!!!!!!!!")
-        await comp.stop()
-        print(f"{type(comp)} stopped!!!!!!!!!!!!!!")
-
-    # stop_tasks = [
-    #     asyncio.create_task(sw_conn_manager.stop()),
-    #     asyncio.create_task(physical_port_manager.stop()),
-    #     asyncio.create_task(virtual_switch_manager.stop()),
-    #     asyncio.create_task(host.stop()),
-    #     asyncio.create_task(host_manager.stop()),
-    # ]
-    # for dev in dev_list:
-    #     stop_tasks.append(asyncio.create_task(dev.stop()))
-
     stop_tasks = [
-        asyncio.create_task(comp_stop(sw_conn_manager)),
-        asyncio.create_task(comp_stop(physical_port_manager)),
-        asyncio.create_task(comp_stop(virtual_switch_manager)),
-        asyncio.create_task(comp_stop(host)),
-        asyncio.create_task(comp_stop(host_manager)),
+        asyncio.create_task(sw_conn_manager.stop()),
+        asyncio.create_task(physical_port_manager.stop()),
+        asyncio.create_task(virtual_switch_manager.stop()),
+        asyncio.create_task(host.stop()),
+        asyncio.create_task(host_manager.stop()),
     ]
     for dev in dev_list:
-        stop_tasks.append(asyncio.create_task(comp_stop(dev)))
+        stop_tasks.append(asyncio.create_task(dev.stop()))
 
-    print("Trying to stop!!!!!!!!!!!!!!!!!!!!!1!")
     await asyncio.gather(*stop_tasks)
-    print("All stopped!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     await asyncio.gather(*start_tasks)
 
 

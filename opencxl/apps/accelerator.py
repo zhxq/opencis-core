@@ -70,6 +70,16 @@ class MyType1Accelerator(RunnableComponent):
         )
 
         self.accel_dirname = f"/Users/zhxq/Downloads/imagenette2-160/T1Accel@{self._label}"
+        os.symlink(
+            src="/Users/zhxq/Downloads/imagenette2-160/train",
+            dst=f"{self.accel_dirname}{os.path.sep}train",
+            target_is_directory=True,
+        )
+        os.symlink(
+            src="/Users/zhxq/Downloads/imagenette2-160/val",
+            dst=f"{self.accel_dirname}{os.path.sep}val",
+            target_is_directory=True,
+        )
         Path(self.accel_dirname).mkdir(parents=True, exist_ok=True)
         # Model setup
         self.model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
@@ -88,14 +98,14 @@ class MyType1Accelerator(RunnableComponent):
         )
 
         self._train_dataset = datasets.ImageFolder(
-            root="/Users/zhxq/Downloads/imagenette2-160/train", transform=self.transform
+            root=f"{self.accel_dirname}{os.path.sep}train", transform=self.transform
         )
         self._train_dataloader = DataLoader(
             self._train_dataset, batch_size=32, shuffle=True, num_workers=4
         )
 
         self._test_dataset = datasets.ImageFolder(
-            root="/Users/zhxq/Downloads/imagenette2-160/val", transform=self.transform
+            root=f"{self.accel_dirname}{os.path.sep}val", transform=self.transform
         )
         self._test_dataloader = DataLoader(
             self._train_dataset, batch_size=10, shuffle=True, num_workers=4
@@ -181,7 +191,7 @@ class MyType1Accelerator(RunnableComponent):
         # the host memory using CXL.cache, then use CXL.cache again to appropriately
         # request the data from the host, one cacheline at a time.
 
-        CACHELINE_LENGTH = 64
+        # CACHELINE_LENGTH = 64
 
         metadata_addr_mmio_addr = 0x1800
         metadata_size_mmio_addr = 0x1808
@@ -275,22 +285,8 @@ class MyType1Accelerator(RunnableComponent):
         # Done with eval
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
 
-    async def _run_app(self, reader_id):
+    async def _run_app(self, _):
         print("app running")
-
-        # chdir could cause issues! The memory won't be able to be read
-        # logger.info(
-        #     self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
-        # )
-        # os.chdir(self.accel_dirname)
-
-        # logger.info(self._create_message("Creating symlinks to training and validation datasets"))
-        # os.symlink(
-        #     src="/Users/zhxq/Downloads/imagenette2-160/train", dst="train", target_is_directory=True
-        # )
-        # os.symlink(
-        #     src="/Users/zhxq/Downloads/imagenette2-160/val", dst="val", target_is_directory=True
-        # )
 
         logger.info(self._create_message("Beginning training"))
         if torch.cuda.is_available():
@@ -299,27 +295,28 @@ class MyType1Accelerator(RunnableComponent):
             device = torch.device("mps")
         else:
             device = torch.device("cpu")
-        print(f"torch.device: {device}")
+        print(f"Using torch.device: {device}")
 
-        # # Uses CXL.cache to copy metadata from host cached memory into device local memory
-        # await self._get_metadata()
+        # Uses CXL.cache to copy metadata from host cached memory into device local memory
+        await self._get_metadata()
 
-        # epochs = 2
-        # epoch_loss = 0
-        # for epoch in range(epochs):
-        #     loss_fn = torch.nn.CrossEntropyLoss()
-        #     optimizer = torch.optim.SGD(self.model.parameters())
-        #     scheduler = torch.optim.lr_scheduler.LinearLR(
-        #         optimizer, start_factor=1, end_factor=0.5, total_iters=30
-        #     )
-        #     self._train_one_epoch(
-        #         train_dataloader=self._train_dataloader,
-        #         test_dataloader=self._test_dataloader,
-        #         optimizer=optimizer,
-        #         loss_fn=loss_fn,
-        #         device=device,
-        #     )
-        #     scheduler.step()
+        epochs = 2
+        for epoch in range(epochs):
+            logger.debug(f"Starting epoch: {epoch}")
+            loss_fn = torch.nn.CrossEntropyLoss()
+            optimizer = torch.optim.SGD(self.model.parameters())
+            scheduler = torch.optim.lr_scheduler.LinearLR(
+                optimizer, start_factor=1, end_factor=0.5, total_iters=30
+            )
+            self._train_one_epoch(
+                train_dataloader=self._train_dataloader,
+                test_dataloader=self._test_dataloader,
+                optimizer=optimizer,
+                loss_fn=loss_fn,
+                device=device,
+            )
+            scheduler.step()
+            logger.debug(f"Epoch: {epoch} finished")
 
         # Done training
         print("Training Done!!!")
