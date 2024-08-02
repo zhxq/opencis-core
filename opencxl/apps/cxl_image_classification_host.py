@@ -144,7 +144,7 @@ class HostTrainIoGen(RunnableComponent):
         if self._train_finished_count == self._device_count:
             await self._host_process_validation_type1(dev_id)
 
-    async def _host_process_validation_type1(self, dev_id: int):
+    async def _host_process_validation_type1(self, _: int):
         print("_host_process_validation_type1 INVOKED!!!!!")
         categories = glob.glob(self._train_data_path + "/val/*")
         self._total_samples = len(categories) * self._sample_from_each_category
