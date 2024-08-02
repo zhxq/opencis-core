@@ -236,8 +236,8 @@ class MyType1Accelerator(RunnableComponent):
 
         CACHELINE_LENGTH = 64
 
-        image_addr_mmio_addr = 0x810
-        image_size_mmio_addr = 0x818
+        image_addr_mmio_addr = 0x1810
+        image_size_mmio_addr = 0x1818
         image_addr = await self._cxl_type1_device.read_mmio(image_addr_mmio_addr, 8)
         image_size = await self._cxl_type1_device.read_mmio(image_size_mmio_addr, 8)
 
@@ -245,13 +245,13 @@ class MyType1Accelerator(RunnableComponent):
 
         im = None
 
-        with BytesIO() as imgbuf:
-            for cacheline_offset in range(image_addr, image_end, CACHELINE_LENGTH):
-                cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
-                cacheline = cast(int, cacheline)
-                chunk_size = min(CACHELINE_LENGTH, (image_end - cacheline_offset))
-                imgbuf.write(cacheline.to_bytes(chunk_size, "little"))
-            im = Image.open(imgbuf)
+        imgbuf = BytesIO()
+        for cacheline_offset in range(image_addr, image_end, CACHELINE_LENGTH):
+            cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
+            cacheline = cast(int, cacheline)
+            chunk_size = min(CACHELINE_LENGTH, (image_end - cacheline_offset))
+            imgbuf.write(cacheline.to_bytes(chunk_size, "little"))
+        im = Image.open(imgbuf)
 
         return im
 
@@ -268,7 +268,7 @@ class MyType1Accelerator(RunnableComponent):
 
         # 10 predicted classes
         # TODO: avoid magic number usage
-        pred_kv = {self.test_dataset.classes[i]: predicted_probs[i] for i in range(0, 10)}
+        pred_kv = {self._test_dataset.classes[i]: predicted_probs[i] for i in range(0, 10)}
 
         json_asenc = str.encode(json.dumps(pred_kv))
         bytes_size = len(json_asenc)

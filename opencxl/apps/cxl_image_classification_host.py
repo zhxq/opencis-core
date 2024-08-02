@@ -68,7 +68,7 @@ class HostTrainIoGen(RunnableComponent):
         self._processor_to_cache_fifo = config.processor_to_cache_fifo
         self._root_complex = config.root_complex
         self._irq_handler = config.irq_handler
-        self._validation_results = []
+        self._validation_results: List[List[Dict[str, float]]] = []
         self._device_finished_training = 0
         self._sample_from_each_category = sample_from_each_category
         self._sampled_file_categories = []
@@ -147,8 +147,12 @@ class HostTrainIoGen(RunnableComponent):
     async def _host_process_validation_type1(self, _: int):
         print("_host_process_validation_type1 INVOKED!!!!!")
         categories = glob.glob(self._train_data_path + "/val/*")
+        print("Preparing 1")
         self._total_samples = len(categories) * self._sample_from_each_category
-        self._validation_results: List[List[Dict[str, float]]] = [[] for _ in self._total_samples]
+        print("Preparing 2")
+        print(f"Creating for {self._total_samples} lists")
+        self._validation_results = [[] for i in range(self._total_samples)]
+        print("Preparing 3")
         pic_id = 0
         pic_data_mem_loc = 0x00008000
         print("Preparing")
