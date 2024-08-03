@@ -56,6 +56,7 @@ class MyType1Accelerator(RunnableComponent):
         port: int = 8000,
         server_port: int = 9050,
         device_id: int = 0,
+        host_mem_size: int = 0,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
@@ -67,6 +68,7 @@ class MyType1Accelerator(RunnableComponent):
                 transport_connection=self._sw_conn_client.get_cxl_connection(),
                 device_name=label,
                 device_id=device_id,
+                host_mem_size=host_mem_size,
             )
         )
         self.original_base_folder = "/Users/zhxq/Downloads/imagenette2-160"
@@ -383,8 +385,6 @@ class MyType2Accelerator(RunnableComponent):
         server_port: int = 9050,
     ):
         label = f"Port{port_index}"
-
-
 #         super().__init__(label)
 #         self._sw_conn_client = SwitchConnectionClient(
 #             port_index, CXL_COMPONENT_TYPE.T2, host=host, port=port
