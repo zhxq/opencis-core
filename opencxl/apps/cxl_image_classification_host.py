@@ -244,10 +244,10 @@ class HostTrainIoGen(RunnableComponent):
         return _func
 
     def _merge_validation_results(self):
-        max_v = 0
-        max_k = 0
         for pic_id in range(self._total_samples):
             merged_result = {}
+            max_v = 0
+            max_k = 0
             assert len(self._validation_results[pic_id]) == self._device_count
             real_category = self._sampled_file_categories[pic_id]
             print(f"Picture {pic_id}:")

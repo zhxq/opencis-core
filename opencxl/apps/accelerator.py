@@ -7,6 +7,7 @@
 
 # pylint: disable=unused-import
 from asyncio import gather, create_task, Event, sleep
+import glob
 from io import BytesIO
 from typing import cast
 import shutil
@@ -68,20 +69,20 @@ class MyType1Accelerator(RunnableComponent):
                 device_id=device_id,
             )
         )
-
-        self.accel_dirname = f"/Users/zhxq/Downloads/imagenette2-160/T1Accel@{self._label}"
+        self.original_base_folder = "/Users/zhxq/Downloads/imagenette2-160"
+        self.accel_dirname = f"/tmp/T1Accel@{self._label}"
         if os.path.exists(self.accel_dirname) and os.path.isdir(self.accel_dirname):
             shutil.rmtree(self.accel_dirname)
         Path(self.accel_dirname).mkdir(parents=True, exist_ok=True)
         self._train_folder = f"{self.accel_dirname}{os.path.sep}train"
         self._val_folder = f"{self.accel_dirname}{os.path.sep}val"
         os.symlink(
-            src="/Users/zhxq/Downloads/imagenette2-160/train",
+            src=f"{self.original_base_folder}{os.path.sep}train",
             dst=self._train_folder,
             target_is_directory=True,
         )
         os.symlink(
-            src="/Users/zhxq/Downloads/imagenette2-160/val",
+            src=f"{self.original_base_folder}{os.path.sep}val",
             dst=self._val_folder,
             target_is_directory=True,
         )
@@ -245,16 +246,17 @@ class MyType1Accelerator(RunnableComponent):
         # pylint: disable=E1101
         im = await self._get_test_image()
         tens = cast(torch.Tensor, self.transform(im))
-        print(tens.shape)
+
         # Model expects a 4-dimensional tensor
         tens = torch.unsqueeze(tens, 0)
 
         pred_logit = self.model(tens)
         predicted_probs = torch.softmax(pred_logit, dim=1)[0]
 
-        # 10 predicted classes
-        # TODO: avoid magic number usage
-        pred_kv = {self._test_dataset.classes[i]: predicted_probs[i].item() for i in range(0, 10)}
+        categories = glob.glob(f"{self._val_folder}{os.path.sep}*")
+        pred_kv = {
+            self._test_dataset.classes[i]: predicted_probs[i].item() for i in range(len(categories))
+        }
 
         json_asenc = str.encode(json.dumps(pred_kv))
         bytes_size = len(json_asenc)
@@ -282,9 +284,6 @@ class MyType1Accelerator(RunnableComponent):
                 break
             await sleep(0.2)
 
-        # # Debug
-        # await self._cxl_type1_device.cxl_cache_writeline(RESULTS_HPA, json_asint & ((1 << 64) - 1))
-
         # Done with eval
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
 
@@ -304,27 +303,27 @@ class MyType1Accelerator(RunnableComponent):
         # await self._get_metadata()
         # If testing:
         shutil.copy(
-            f"{self.accel_dirname}{os.path.sep}..{os.path.sep}noisy_imagenette.csv",
+            f"{self.original_base_folder}{os.path.sep}noisy_imagenette.csv",
             f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv",
         )
 
-        epochs = 2
-        for epoch in range(epochs):
-            logger.debug(f"Starting epoch: {epoch}")
-            loss_fn = torch.nn.CrossEntropyLoss()
-            optimizer = torch.optim.SGD(self.model.parameters())
-            scheduler = torch.optim.lr_scheduler.LinearLR(
-                optimizer, start_factor=1, end_factor=0.5, total_iters=30
-            )
-            self._train_one_epoch(
-                train_dataloader=self._train_dataloader,
-                test_dataloader=self._test_dataloader,
-                optimizer=optimizer,
-                loss_fn=loss_fn,
-                device=device,
-            )
-            scheduler.step()
-            logger.debug(f"Epoch: {epoch} finished")
+        # epochs = 1
+        # for epoch in range(epochs):
+        #     logger.debug(f"Starting epoch: {epoch}")
+        #     loss_fn = torch.nn.CrossEntropyLoss()
+        #     optimizer = torch.optim.SGD(self.model.parameters())
+        #     scheduler = torch.optim.lr_scheduler.LinearLR(
+        #         optimizer, start_factor=1, end_factor=0.5, total_iters=30
+        #     )
+        #     self._train_one_epoch(
+        #         train_dataloader=self._train_dataloader,
+        #         test_dataloader=self._test_dataloader,
+        #         optimizer=optimizer,
+        #         loss_fn=loss_fn,
+        #         device=device,
+        #     )
+        #     scheduler.step()
+        #     logger.debug(f"Epoch: {epoch} finished")
 
         # Done training
         print("Training Done!!!")

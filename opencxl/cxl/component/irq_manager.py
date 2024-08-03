@@ -117,10 +117,6 @@ class IrqManager(RunnableComponent):
             create_task(self._msg_to_interrupt_event[remote_dev_id][irq](remote_dev_id))
             print(f"IRQ handled for {irq.name}")
 
-    async def poll(self):
-        # print("Polling")
-        await sleep(0)
-
     async def _create_server(self):
         self._run_status = True
 
@@ -129,7 +125,7 @@ class IrqManager(RunnableComponent):
             self._irq_handlers.append(create_task(self._irq_handler(reader, writer)))
 
         server = await start_server(_new_conn, self._addr, self._port, limit=2)
-        print(f"Starting server on {self._addr}:{self._port}")
+        print(f"Starting irq server on {self._addr}:{self._port}")
         return server
 
     async def send_irq_request(self, request: Irq, device: int = 0):
