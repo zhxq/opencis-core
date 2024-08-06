@@ -432,7 +432,7 @@ class MyType2Accelerator(RunnableComponent):
         )
 
         self._device_id = device_id
-        logger.info(f"self._device_id:{self._device_id}")
+
         device_config = CxlType2DeviceConfig(
             device_name=label,
             transport_connection=self._sw_conn_client.get_cxl_connection(),
@@ -463,6 +463,7 @@ class MyType2Accelerator(RunnableComponent):
         self._wait_tasks = None
         self._train_dataloader = None
         self._test_dataset = None
+        self._val_dir = ""
 
     def _setup_test_env(self):
         if not os.path.isdir(self.accel_dirname):
@@ -475,6 +476,7 @@ class MyType2Accelerator(RunnableComponent):
 
         train_dir = os.path.abspath(train_dir)
         val_dir = os.path.abspath(val_dir)
+        self._val_dir = val_dir
 
         logger.debug(
             self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
@@ -646,9 +648,7 @@ class MyType2Accelerator(RunnableComponent):
 
     async def _validate_model(self, _):
         # pylint: disable=no-member
-        logger.info(f"Getting test image for dev {self._device_id}")
         im = await self._get_test_image()
-        logger.info(f"Got test image for dev {self._device_id}")
         tens = cast(torch.Tensor, self._transform(im))
 
         # Model expects a 4-dimensional tensor
@@ -660,7 +660,10 @@ class MyType2Accelerator(RunnableComponent):
 
         # 10 predicted classes
         # TODO: avoid magic number usage
-        pred_kv = {self._test_dataset.classes[i]: predicted_probs[i].item() for i in range(0, 10)}
+        categories = glob.glob(f"{self._val_dir}{os.path.sep}*")
+        pred_kv = {
+            self._test_dataset.classes[i]: predicted_probs[i].item() for i in range(len(categories))
+        }
 
         json_asenc = str.encode(json.dumps(pred_kv))
         bytes_size = len(json_asenc)
