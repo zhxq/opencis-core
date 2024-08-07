@@ -154,7 +154,8 @@ class MyType1Accelerator(RunnableComponent):
         for _, (inputs, labels) in tqdm(
             enumerate(train_dataloader),
             total=len(train_dataloader),
-            desc="Progress",
+            desc=f"Dev {self._device_id} Training Progress",
+            position=self._device_id,
         ):
             if self._stop_flag:
                 return
@@ -191,7 +192,8 @@ class MyType1Accelerator(RunnableComponent):
             for _, (inputs, labels) in tqdm(
                 enumerate(test_dataloader),
                 total=len(test_dataloader),
-                desc="Progress",
+                desc=f"Dev {self._device_id} Cross-validation Progress",
+                position=self._device_id,
             ):
                 if self._stop_flag:
                     return
@@ -245,6 +247,7 @@ class MyType1Accelerator(RunnableComponent):
                 unit_scale=True,
                 unit_divisor=1024,
                 position=self._device_id,
+                leave=False,
             ) as pbar:
                 for cacheline_offset in range(start, end, 64):
                     cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
@@ -322,6 +325,7 @@ class MyType1Accelerator(RunnableComponent):
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
 
     async def _run_app(self, _):
+        logger.info(f"RUN APP rcvd for {self._device_id}")
         try:
             if torch.cuda.is_available():
                 self._torch_device = torch.device("cuda:0")
@@ -432,7 +436,6 @@ class MyType2Accelerator(RunnableComponent):
         )
 
         self._device_id = device_id
-        logger.info(f"self._device_id:{self._device_id}")
         device_config = CxlType2DeviceConfig(
             device_name=label,
             transport_connection=self._sw_conn_client.get_cxl_connection(),
@@ -463,6 +466,7 @@ class MyType2Accelerator(RunnableComponent):
         self._wait_tasks = None
         self._train_dataloader = None
         self._test_dataset = None
+        self._val_dir = None
 
     def _setup_test_env(self):
         if not os.path.isdir(self.accel_dirname):
@@ -475,6 +479,7 @@ class MyType2Accelerator(RunnableComponent):
 
         train_dir = os.path.abspath(train_dir)
         val_dir = os.path.abspath(val_dir)
+        self._val_dir = val_dir
 
         logger.debug(
             self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
@@ -524,7 +529,8 @@ class MyType2Accelerator(RunnableComponent):
         for _, (inputs, labels) in tqdm(
             enumerate(train_dataloader),
             total=len(train_dataloader),
-            desc="Progress",
+            desc=f"Dev {self._device_id} Training Progress",
+            position=self._device_id,
         ):
             inputs = inputs.to(device)
             labels = labels.to(device)
@@ -559,7 +565,8 @@ class MyType2Accelerator(RunnableComponent):
             for _, (inputs, labels) in tqdm(
                 enumerate(test_dataloader),
                 total=len(test_dataloader),
-                desc="Progress",
+                desc=f"Dev {self._device_id} Cross-validation Progress",
+                position=self._device_id,
             ):
                 inputs = inputs.to(device)
                 labels = labels.to(device)
@@ -614,6 +621,7 @@ class MyType2Accelerator(RunnableComponent):
                 unit_scale=True,
                 unit_divisor=1024,
                 position=self._device_id,
+                leave=False,
             ) as pbar:
                 for offset in range(0, metadata_size, 64):
                     data = await self._cxl_type2_device.read_mem_hpa(metadata_addr + offset, 64)
@@ -646,9 +654,7 @@ class MyType2Accelerator(RunnableComponent):
 
     async def _validate_model(self, _):
         # pylint: disable=no-member
-        logger.info(f"Getting test image for dev {self._device_id}")
         im = await self._get_test_image()
-        logger.info(f"Got test image for dev {self._device_id}")
         tens = cast(torch.Tensor, self._transform(im))
 
         # Model expects a 4-dimensional tensor
@@ -658,9 +664,10 @@ class MyType2Accelerator(RunnableComponent):
         pred_logit = self._model(tens)
         predicted_probs = torch.softmax(pred_logit, dim=1)[0]
 
-        # 10 predicted classes
-        # TODO: avoid magic number usage
-        pred_kv = {self._test_dataset.classes[i]: predicted_probs[i].item() for i in range(0, 10)}
+        categories = glob.glob(f"{self._val_dir}{os.path.sep}*")
+        pred_kv = {
+            self._test_dataset.classes[i]: predicted_probs[i].item() for i in range(len(categories))
+        }
 
         json_asenc = str.encode(json.dumps(pred_kv))
         bytes_size = len(json_asenc)

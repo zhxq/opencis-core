@@ -291,55 +291,62 @@ class HostTrainIoGen(RunnableComponent):
         self._validation_results = [[] for i in range(self._total_samples)]
         pic_id = 0
         IMAGE_WRITE_ADDR = 0x8000
-        for c in categories:
-            category_pics = glob.glob(f"{c}/*.JPEG")
-            sample_pics = sample(category_pics, self._sample_from_each_category)
-            category_name = c.split(os.path.sep)[-1]
-            self._sampled_file_categories += [category_name] * self._sample_from_each_category
-            for s in sample_pics:
-                with open(s, "rb") as f:
-                    pic_data = f.read()
-                    pic_data_int = int.from_bytes(pic_data, "little")
-                    pic_data_len = len(pic_data)
-                    pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
-                    for dev_id in range(self._device_count):
-                        event = asyncio.Event()
-                        write_addr = self.to_device_mem_addr(dev_id, IMAGE_WRITE_ADDR)
-                        await self.store(
-                            write_addr,
-                            pic_data_len_rounded,
-                            pic_data_int,
-                        )
-                        await self.write_mmio(
-                            self.to_device_mmio_addr(dev_id, 0x1810), 8, IMAGE_WRITE_ADDR
-                        )
-                        await self.write_mmio(
-                            self.to_device_mmio_addr(dev_id, 0x1818), 8, pic_data_len
-                        )
-                        while True:
-                            pic_data_mem_loc_rb = await self.read_mmio(
-                                self.to_device_mmio_addr(dev_id, 0x1810), 8
+        with tqdm(total=self._total_samples, desc="Picture", position=0) as pbar_cat:
+            for c in categories:
+                category_pics = glob.glob(f"{c}/*.JPEG")
+                sample_pics = sample(category_pics, self._sample_from_each_category)
+                category_name = c.split(os.path.sep)[-1]
+                self._sampled_file_categories += [category_name] * self._sample_from_each_category
+                for s in sample_pics:
+                    with open(s, "rb") as f:
+                        pic_data = f.read()
+                        pic_data_int = int.from_bytes(pic_data, "little")
+                        pic_data_len = len(pic_data)
+                        pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
+                        for dev_id in tqdm(
+                            range(self._device_count),
+                            desc="Device Progress",
+                            position=1,
+                            leave=False,
+                        ):
+                            event = asyncio.Event()
+                            write_addr = self.to_device_mem_addr(dev_id, IMAGE_WRITE_ADDR)
+                            await self.store(
+                                write_addr,
+                                pic_data_len_rounded,
+                                pic_data_int,
                             )
-                            pic_data_len_rb = await self.read_mmio(
-                                self.to_device_mmio_addr(dev_id, 0x1818), 8
+                            await self.write_mmio(
+                                self.to_device_mmio_addr(dev_id, 0x1810), 8, IMAGE_WRITE_ADDR
                             )
+                            await self.write_mmio(
+                                self.to_device_mmio_addr(dev_id, 0x1818), 8, pic_data_len
+                            )
+                            while True:
+                                pic_data_mem_loc_rb = await self.read_mmio(
+                                    self.to_device_mmio_addr(dev_id, 0x1810), 8
+                                )
+                                pic_data_len_rb = await self.read_mmio(
+                                    self.to_device_mmio_addr(dev_id, 0x1818), 8
+                                )
 
-                            if (
-                                pic_data_mem_loc_rb == IMAGE_WRITE_ADDR
-                                and pic_data_len_rb == pic_data_len
-                            ):
-                                break
-                            await asyncio.sleep(0.2)
-                        self._irq_handler.register_interrupt_handler(
-                            Irq.ACCEL_VALIDATION_FINISHED,
-                            self._save_validation_result_type2(dev_id, pic_id, event),
-                            dev_id,
-                        )
-                        await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
-                        await event.wait()
-                        # Currently we don't send the picture information to the device
-                        # and to prevent race condition, we need to send pics synchronously
-                    pic_id += 1
+                                if (
+                                    pic_data_mem_loc_rb == IMAGE_WRITE_ADDR
+                                    and pic_data_len_rb == pic_data_len
+                                ):
+                                    break
+                                await asyncio.sleep(0.2)
+                            self._irq_handler.register_interrupt_handler(
+                                Irq.ACCEL_VALIDATION_FINISHED,
+                                self._save_validation_result_type2(dev_id, pic_id, event),
+                                dev_id,
+                            )
+                            await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
+                            await event.wait()
+                            # Currently we don't send the picture information to the device
+                            # and to prevent race condition, we need to send pics synchronously
+                        pic_id += 1
+                        pbar_cat.update(1)
         self._merge_validation_results()
 
     def _save_validation_result_type2(self, dev_id: int, pic_id: int, event: asyncio.Event):
@@ -378,9 +385,7 @@ class HostTrainIoGen(RunnableComponent):
             for dev_id in range(self._device_count):
                 await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, csv_data_mem_loc)
                 await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
-                logger.info(
-                    self._create_message(f"Checking T1 metadata integrity for dev {dev_id}!")
-                )
+
                 while True:
                     csv_data_mem_loc_rb = await self.read_mmio(
                         self.to_device_mmio_addr(dev_id, 0x1800), 8
@@ -401,9 +406,7 @@ class HostTrainIoGen(RunnableComponent):
                 await self.store(write_addr, csv_data_len_rounded, csv_data_int, prog_bar=True)
                 await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, write_addr)
                 await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
-                logger.info(
-                    self._create_message(f"Checking T2 metadata integrity for dev {dev_id}!")
-                )
+
                 while True:
                     csv_data_mem_loc_rb = await self.read_mmio(
                         self.to_device_mmio_addr(dev_id, 0x1800), 8
@@ -422,7 +425,9 @@ class HostTrainIoGen(RunnableComponent):
             raise Exception("Only T1 and T2 devices are allowed!")
 
         for dev_id in range(self._device_count):
+            logger.info(f"Sending HOST_READY to dev {dev_id}")
             await self._irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
+            logger.info(f"Finished sending HOST_READY to dev {dev_id}")
 
         await self._internal_stop_signal.wait()
 
