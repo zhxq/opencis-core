@@ -658,8 +658,6 @@ class MyType2Accelerator(RunnableComponent):
         pred_logit = self._model(tens)
         predicted_probs = torch.softmax(pred_logit, dim=1)[0]
 
-        # 10 predicted classes
-        # TODO: avoid magic number usage
         categories = glob.glob(f"{self._val_dir}{os.path.sep}*")
         pred_kv = {
             self._test_dataset.classes[i]: predicted_probs[i].item() for i in range(len(categories))
