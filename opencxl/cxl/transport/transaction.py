@@ -1893,3 +1893,55 @@ class CXL_MEM_SNP_TYPE(IntEnum):
     SNP_DATA = 0b001
     SNP_CUR = 0b010
     SNP_INV = 0b011
+
+
+# CCI Base Packets wrappers for Switch <-> MLD
+
+
+class CCI_MSG_CLASS(IntEnum):
+    REQ = 1
+    RSP = 2
+
+
+class CciHeaderPacket(UnalignedBitStructure):
+    port_index: int
+    msg_class: CCI_MSG_CLASS
+    _fields = [ByteField("port_index", 0, 0), ByteField("msg_class", 1, 1)]
+
+
+CCI_HEADER_START = SYSTEM_HEADER_END + 1
+CCI_HEADER_END = CCI_HEADER_START + CciHeaderPacket.get_size() - 1
+CCI_FIELD_START = CCI_HEADER_END + 1
+
+
+class CciBasePacket(BasePacket):
+    cci_header: CciHeaderPacket
+    data: int
+    _fields = BasePacket._fields + [
+        StructureField(
+            "cci_header",
+            CCI_HEADER_START,
+            CCI_HEADER_END,
+            CciHeaderPacket,
+        ),
+        DynamicByteField("data", CCI_FIELD_START, 0x0),
+    ]
+
+    def is_req(self) -> bool:
+        return self.cci_header.msg_class == CCI_MSG_CLASS.REQ
+
+    def is_rsp(self) -> bool:
+        return self.cci_header.msg_class == CCI_MSG_CLASS.RSP
+
+    def len(self) -> int:
+        return self.system_header.payload_length - CCI_FIELD_START
+
+
+class CciPayloadPacket(CciBasePacket):
+    @staticmethod
+    def create(data: int, length: int) -> "CciPayloadPacket":
+        packet = CciPayloadPacket()
+        packet.system_header.payload_type = PAYLOAD_TYPE.CCI_MCTP
+        packet.system_header.payload_length = length + CCI_FIELD_START
+        packet.data = data
+        return packet

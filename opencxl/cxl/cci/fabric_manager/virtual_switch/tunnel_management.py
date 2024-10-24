@@ -10,7 +10,6 @@ from enum import Enum
 from typing import ClassVar, Optional
 from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
 from opencxl.cxl.component.virtual_switch_manager import VirtualSwitchManager
-from opencxl.pci.component.pci import EEUM_VID
 from opencxl.cxl.cci.common import (
     CCI_FM_API_COMMAND_OPCODE,
 )
@@ -19,6 +18,7 @@ from opencxl.cxl.component.cci_executor import (
     CciResponse,
     CciForegroundCommand,
 )
+from opencxl.cxl.transport.transaction import CciBasePacket, CciPayloadPacket
 
 
 class TunnelManagementTargetType(Enum):
@@ -57,7 +57,6 @@ class TunnelManagementRequestPayload:
 
 @dataclass
 class TunnelManagementResponsePayload:
-
     response_size: int = field(default=0, metadata={"offset": 0, "length": 2})
     reserved: int = field(default=0, metadata={"offset": 2, "length": 2})
     payload: int = field(default=0, metadata={"offset": 4})
@@ -101,7 +100,18 @@ class TunnelManagementCommand(CciForegroundCommand):
         request_payload = self.parse_request_payload(request.payload)
         port_or_ld_id = request_payload.port_or_ld_id
         port_device = self._physical_port_manager.get_port_device(port_or_ld_id)
-        payload = self._dev_info.dump()
+
+        real_payload = request_payload.command_payload
+        real_payload_len = request_payload.command_size
+        to_dev_payload = CciPayloadPacket.create(real_payload, real_payload_len)
+        await port_device.get_downstream_connection().cci_fifo.host_to_target.put(to_dev_payload)
+
+        dev_response: CciBasePacket = (
+            await port_device.get_downstream_connection().cci_fifo.target_to_host.get()
+        )
+
+        payload = TunnelManagementResponsePayload(dev_response.len(), payload=dev_response.data)
+
         return CciResponse(payload=payload)
 
     @classmethod

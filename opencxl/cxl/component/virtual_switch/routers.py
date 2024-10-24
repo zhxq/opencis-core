@@ -433,9 +433,9 @@ class CxlCacheRouter(CxlRouter):
             if target_fld_name not in upstream_vppb_component.get_cache_route_table_options():
                 logger.warning(self._create_message("Received unroutable CXL.cache packet"))
                 continue
-            target_port = upstream_vppb_component.get_cache_route_table_options()[target_fld_name][
-                "port_number"
-            ]
+            target_port: int = upstream_vppb_component.get_cache_route_table_options()[
+                target_fld_name
+            ]["port_number"]
             if target_port is None:
                 logger.warning(self._create_message("Received unroutable CXL.cache packet"))
                 logger.warning(self._create_message("Packet details: "))
@@ -482,77 +482,4 @@ class CxlCacheRouter(CxlRouter):
                     # get the local cache id
                     cache_id = cache_id_decoder_opt_ctl["local_cache_id"]
                     cxl_cache_packet.set_cache_id(cache_id)
-            await self._upstream_connection_fifo.target_to_host.put(packet)
-
-
-class MctpRouter(CxlRouter):
-    def __init__(
-        self,
-        vcs_id: int,
-        routing_table: RoutingTable,
-        usp_device: UpstreamPortDevice,
-        port_binder: PortBinder,
-    ):
-        usp_connection = usp_device.get_downstream_connection()
-        self._usp_device = usp_device
-        self._port_binder = port_binder
-
-        super().__init__(vcs_id, routing_table)
-        self._upstream_connection_fifo = usp_connection.cci_fifo
-        self._downstream_connections = port_binder.get_bind_slots()
-        self._downstream_connection_fifos = [
-            self._downstream_connections[i].vppb_connection.cci_fifo
-            for i in range(len(self._downstream_connections))
-        ]
-
-    async def _process_host_to_target_packets(self):
-        # NOTE: host here is FM, not the actual host computer
-        while True:
-            packet = await self._upstream_connection_fifo.host_to_target.get()
-            if packet is None:
-                break
-
-            target_port = None
-
-            cxl_mem_base_packet = cast(CxlMemBasePacket, packet)
-            if cxl_mem_base_packet.is_m2sreq():
-                cxl_mem_packet = cast(CxlMemM2SReqPacket, packet)
-                addr = cxl_mem_packet.get_address()
-                target_port = self._routing_table.get_cxl_mem_target_port(addr)
-            elif cxl_mem_base_packet.is_m2srwd():
-                cxl_mem_packet = cast(CxlMemM2SRwDPacket, packet)
-                addr = cxl_mem_packet.get_address()
-                target_port = self._routing_table.get_cxl_mem_target_port(addr)
-            elif cxl_mem_base_packet.is_m2sbirsp():
-                cxl_mem_bi_packet: CxlMemM2SBIRspPacket = cast(
-                    CxlMemM2SBIRspPacket, cxl_mem_base_packet
-                )
-                for i, bind_slot in enumerate(self._downstream_connections):
-                    dsp_device = bind_slot.dsp
-                    bus = dsp_device.get_secondary_bus_number()
-                    if bus == cxl_mem_bi_packet.m2sbirsp_header.bi_id:
-                        target_port = i
-                        break
-            else:
-                raise Exception("Received unexpected packet")
-
-            if target_port is None:
-                logger.warning(self._create_message("Received unroutable MCTP packet"))
-                logger.warning(self._create_message(cxl_mem_packet.get_pretty_string()))
-                continue
-            if target_port >= len(self._downstream_connections):
-                raise Exception("target_port is out of bound")
-            downstream_connection_fifo = self._downstream_connections[
-                target_port
-            ].vppb_connection.cci_fifo
-            await downstream_connection_fifo.host_to_target.put(packet)
-
-    async def _process_target_to_host_packets(self, downstream_connection_bind_slot: BindSlot):
-        downstream_connection_fifo = downstream_connection_bind_slot.vppb_connection.cci_fifo
-
-        while True:
-            packet = await downstream_connection_fifo.target_to_host.get()
-            if packet is None:
-                break
-
             await self._upstream_connection_fifo.target_to_host.put(packet)
