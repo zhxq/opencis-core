@@ -6,8 +6,7 @@
 """
 
 from typing import Optional, cast
-from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
-from opencxl.cxl.component.virtual_switch_manager import VirtualSwitchManager
+from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.cci.common import (
     CCI_FM_API_COMMAND_OPCODE,
 )
@@ -16,6 +15,7 @@ from opencxl.cxl.component.cci_executor import (
     CciResponse,
     CciForegroundCommand,
 )
+from opencxl.cxl.device.cxl_type3_device import CxlType3Device
 from opencxl.cxl.transport.transaction import CciMessagePacket
 from opencxl.cxl.cci.common import TunnelManagementRequestPayload, TunnelManagementResponsePayload
 
@@ -25,31 +25,31 @@ class TunnelManagementCommand(CciForegroundCommand):
 
     def __init__(
         self,
-        physical_port_manager: PhysicalPortManager,
-        virtual_switch_manager: VirtualSwitchManager,
         label: Optional[str] = None,
+        cxl_type3_devices: list[CxlType3Device] = None,
+        cxl_connections: list[CxlConnection] = None,
     ):
         super().__init__(self.OPCODE, label=label)
-        self._physical_port_manager = physical_port_manager
-        self._virtual_switch_manager = virtual_switch_manager
+        if len(cxl_type3_devices) == 0:
+            cxl_type3_devices = []
+        if len(cxl_connections) == 0:
+            cxl_connections = []
+        self._cxl_type3_devices = cxl_type3_devices
+        self._cxl_connections = cxl_connections
 
     async def _execute(self, request: CciRequest) -> CciResponse:
         request_payload = self.parse_request_payload(request.payload)
         port_or_ld_id = request_payload.port_or_ld_id
-        port_device = self._physical_port_manager.get_port_device(port_or_ld_id)
 
         real_payload = request_payload.command_payload
-        real_payload_packet = cast(CciMessagePacket, real_payload)
-        await port_device.get_downstream_connection().cci_fifo.host_to_target.put(
-            real_payload_packet
-        )
+        connection = self._cxl_connections[port_or_ld_id]
 
-        dev_response: CciMessagePacket = (
-            await port_device.get_downstream_connection().cci_fifo.target_to_host.get()
-        )
+        await connection.cci_fifo.host_to_target.put(cast(CciMessagePacket, real_payload))
+
+        dev_response: CciMessagePacket = await connection.cci_fifo.target_to_host.get()
 
         payload = TunnelManagementResponsePayload(
-            dev_response.get_size(), payload=bytes(dev_response)
+            dev_response.get_size(), payload=bytes(CciMessagePacket)
         )
 
         return CciResponse(payload=payload)

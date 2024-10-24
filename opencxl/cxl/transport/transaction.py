@@ -1862,6 +1862,9 @@ class CciMessagePacket:
     header: CciMessageHeaderPacket
     payload: bytes
 
+    def get_size(self) -> int:
+        return self.header.get_message_payload_length() + 12
+
 
 class CXL_M2S_RWD_OPCODES(IntEnum):
     MEM_WR = 0b0001
@@ -1916,7 +1919,7 @@ CCI_FIELD_START = CCI_HEADER_END + 1
 
 class CciBasePacket(BasePacket):
     cci_header: CciHeaderPacket
-    data: int
+    data: CciMessagePacket
     _fields = BasePacket._fields + [
         StructureField(
             "cci_header",
@@ -1939,7 +1942,7 @@ class CciBasePacket(BasePacket):
 
 class CciPayloadPacket(CciBasePacket):
     @staticmethod
-    def create(data: int, length: int) -> "CciPayloadPacket":
+    def create(data: CciMessagePacket, length: int) -> "CciPayloadPacket":
         packet = CciPayloadPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CCI_MCTP
         packet.system_header.payload_length = length + CCI_FIELD_START

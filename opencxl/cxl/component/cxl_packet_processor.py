@@ -24,6 +24,9 @@ from opencxl.cxl.component.packet_reader import PacketReader
 from opencxl.cxl.transport.transaction import (
     BasePacket,
     BaseSidebandPacket,
+    CciBasePacket,
+    CciMessagePacket,
+    CciPayloadPacket,
     CxlIoBasePacket,
     CxlMemBasePacket,
     CxlCacheBasePacket,
@@ -284,9 +287,9 @@ class CxlPacketProcessor(RunnableComponent):
                         logger.error(self._create_message("Got CCI packet on no CCI FIFO"))
                         continue
                     logger.debug(self._create_message(f"Received {self._incoming_dir} CCI packet"))
-                    # TODO: create CciBasePacket
-                    # cci_packet = cast(CciBasePacket, packet)
-                    # await self._incoming.cci_fifo.put(cci_packet)
+                    cci_packet = cast(CciBasePacket, packet)
+                    cci_packet_payload = cast(CciMessagePacket, cci_packet.data)
+                    await self._incoming.cci_fifo.put(cci_packet_payload)
                 else:
                     message = f"Received unexpected {self._incoming_dir} packet"
                     logger.debug(self._create_message(message))
@@ -379,10 +382,11 @@ class CxlPacketProcessor(RunnableComponent):
     async def _process_outgoing_cci_packets(self):
         logger.debug(self._create_message("Starting outgoing CCI FIFO processor"))
         while True:
-            packet = await self._outgoing.cci_fifo.get()
+            packet: CciMessagePacket = await self._outgoing.cci_fifo.get()
             if self._is_disconnection_notification(packet):
                 break
-            self._writer.write(bytes(packet))
+            cci_payload_packet = CciPayloadPacket.create(packet, packet.get_size())
+            self._writer.write(bytes(cci_payload_packet))
             await self._writer.drain()
         logger.debug(self._create_message("Stopped outgoing CCI FIFO processor"))
 
