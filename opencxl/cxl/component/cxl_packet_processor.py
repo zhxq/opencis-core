@@ -279,6 +279,14 @@ class CxlPacketProcessor(RunnableComponent):
                     )
                     cxl_cache_packet = cast(CxlCacheBasePacket, packet)
                     await self._incoming.cxl_cache.put(cxl_cache_packet)
+                elif packet.is_cci():
+                    if self._incoming.cci_fifo is None:
+                        logger.error(self._create_message("Got CCI packet on no CCI FIFO"))
+                        continue
+                    logger.debug(self._create_message(f"Received {self._incoming_dir} CCI packet"))
+                    # TODO: create CciBasePacket
+                    # cci_packet = cast(CciBasePacket, packet)
+                    # await self._incoming.cci_fifo.put(cci_packet)
                 else:
                     message = f"Received unexpected {self._incoming_dir} packet"
                     logger.debug(self._create_message(message))
@@ -299,6 +307,8 @@ class CxlPacketProcessor(RunnableComponent):
             await self._outgoing.cxl_mem.put(packet)
         if self._outgoing.cxl_cache:
             await self._outgoing.cxl_cache.put(packet)
+        if self._outgoing.cci_fifo:
+            await self._outgoing.cci_fifo.put(packet)
 
     async def _process_outgoing_cfg_packets(self):
         logger.debug(self._create_message("Starting outgoing CFG FIFO processor"))
@@ -366,6 +376,16 @@ class CxlPacketProcessor(RunnableComponent):
             await self._writer.drain()
         logger.debug(self._create_message("Stopped outgoing CXL.cache FIFO processor"))
 
+    async def _process_outgoing_cci_packets(self):
+        logger.debug(self._create_message("Starting outgoing CCI FIFO processor"))
+        while True:
+            packet = await self._outgoing.cci_fifo.get()
+            if self._is_disconnection_notification(packet):
+                break
+            self._writer.write(bytes(packet))
+            await self._writer.drain()
+        logger.debug(self._create_message("Stopped outgoing CCI FIFO processor"))
+
     async def _process_outgoing_packets(self):
         tasks = [
             create_task(self._process_outgoing_cfg_packets()),
@@ -375,6 +395,8 @@ class CxlPacketProcessor(RunnableComponent):
             tasks.append(create_task(self._process_outgoing_cxl_mem_packets()))
         if self._outgoing.cxl_cache:
             tasks.append(create_task(self._process_outgoing_cxl_cache_packets()))
+        if self._outgoing.cci_fifo:
+            tasks.append(create_task(self._process_outgoing_cci_packets()))
         await gather(*tasks)
 
     async def _run(self):

@@ -39,9 +39,20 @@ class TunnelManagementRequestPayload:
         data = bytearray(self.command_size + 4)
         data[0:1] = self.port_or_ld_id.to_bytes(1, "little")
         data[1:2] = self.target_type.value.to_bytes(1, "little")
-        data[2:3] = self.command_size.to_bytes(1, "little")
+        data[2:4] = self.command_size.to_bytes(2, "little")
         data[4 : 4 + self.command_size] = self.command_payload.to_bytes(self.command_size, "little")
         return bytes(data)
+
+    @classmethod
+    def parse(cls, data: bytes):
+        port_or_ld_id = int.from_bytes(data[0:1], "little")
+        target_type = int.from_bytes(data[1:2], "little")
+        command_size = int.from_bytes(data[2:4], "little")
+        command_payload = int.from_bytes(data[4:], "little")
+
+        if len(data) != command_size:
+            raise ValueError("Provided bytes object does not match the expected data size.")
+        return cls(port_or_ld_id, target_type, command_size, command_payload)
 
 
 @dataclass
@@ -54,7 +65,7 @@ class TunnelManagementResponsePayload:
     @classmethod
     def parse(cls, data: bytes):
         response_size = int.from_bytes(data[0:2], "little")
-        payload = int.from_bytes(data[4 : len(data)], "little")
+        payload = int.from_bytes(data[4:], "little")
 
         if len(data) != response_size + 4:
             raise ValueError("Provided bytes object does not match the expected data size.")
@@ -88,13 +99,18 @@ class TunnelManagementCommand(CciForegroundCommand):
 
     async def _execute(self, request: CciRequest) -> CciResponse:
         request_payload = self.parse_request_payload(request.payload)
-        port_device = self._physical_port_manager.get_port_device(port_id)
+        port_or_ld_id = request_payload.port_or_ld_id
+        port_device = self._physical_port_manager.get_port_device(port_or_ld_id)
         payload = self._dev_info.dump()
         return CciResponse(payload=payload)
 
     @classmethod
     def create_cci_request(cls, request: TunnelManagementRequestPayload) -> CciRequest:
         return CciRequest(opcode=cls.OPCODE, payload=request.dump())
+
+    @staticmethod
+    def parse_request_payload(payload: bytes) -> TunnelManagementRequestPayload:
+        return TunnelManagementRequestPayload.parse(payload)
 
     @staticmethod
     def parse_response_payload(
