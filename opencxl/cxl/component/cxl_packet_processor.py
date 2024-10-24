@@ -14,7 +14,7 @@ from asyncio import (
 )
 from dataclasses import dataclass
 from enum import StrEnum, IntEnum
-from typing import cast, Optional, Dict, Union, List
+from typing import cast, Optional, Dict, List
 
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
@@ -75,6 +75,7 @@ class CxlPacketProcessor(RunnableComponent):
                 mmio=self._cxl_connection[0].mmio_fifo.target_to_host,
                 cxl_mem=self._cxl_connection[0].cxl_mem_fifo.target_to_host,
                 cxl_cache=self._cxl_connection[0].cxl_cache_fifo.target_to_host,
+                cci_fifo=self._cxl_connection[0].cci_fifo.target_to_host,
             )
             self._incoming_dir = PROCESSOR_DIRECTION.TARGET_TO_HOST
             self._outgoing = FifoGroup(
@@ -82,6 +83,7 @@ class CxlPacketProcessor(RunnableComponent):
                 mmio=self._cxl_connection[0].mmio_fifo.host_to_target,
                 cxl_mem=self._cxl_connection[0].cxl_mem_fifo.host_to_target,
                 cxl_cache=self._cxl_connection[0].cxl_cache_fifo.host_to_target,
+                cci_fifo=self._cxl_connection[0].cci_fifo.host_to_target,
             )
             self._outgoing_dir = PROCESSOR_DIRECTION.HOST_TO_TARGET
         elif component_type in (
@@ -100,6 +102,7 @@ class CxlPacketProcessor(RunnableComponent):
                 mmio=self._cxl_connection[0].mmio_fifo.host_to_target,
                 cxl_mem=None,
                 cxl_cache=None,
+                cci_fifo=None,
             )
 
             self._outgoing = FifoGroup(
@@ -107,6 +110,7 @@ class CxlPacketProcessor(RunnableComponent):
                 mmio=self._cxl_connection[0].mmio_fifo.target_to_host,
                 cxl_mem=None,
                 cxl_cache=None,
+                cci_fifo=None,
             )
 
             # Add CXL.cache and CXL.mem FIFO based on the device type
