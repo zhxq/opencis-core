@@ -13,6 +13,7 @@ from asyncio import (
 from dataclasses import dataclass
 from typing import Optional
 
+from opencxl.cxl.component.cxl_io_callback_data import CxlIoCallbackData
 from opencxl.cxl.config_space.dvsec.cxl_devices import (
     DvsecCxlCacheableRangeOptions,
     DvsecCxlCapabilityOptions,
@@ -44,7 +45,7 @@ from opencxl.pci.component.pci import (
     PCI_CLASS,
     MEMORY_CONTROLLER_SUBCLASS,
 )
-from opencxl.pci.component.mmio_manager import MmioManager, BarEntry
+from opencxl.pci.component.mmio_manager import BarEntry
 from opencxl.pci.component.config_space_manager import (
     ConfigSpaceManager,
     PCI_DEVICE_TYPE,
@@ -70,7 +71,6 @@ class CxlType1DeviceConfig:
     cache_line_count: int = 32
     cache_line_size: int = 64 * KB
     device_id: int = 0
-    host_mem_size: int = 0
 
 
 class CxlType1Device(RunnableComponent):
@@ -81,7 +81,6 @@ class CxlType1Device(RunnableComponent):
         self._label = lambda class_name: f"{config.device_name}:{class_name}"
         super().__init__(self._label)
 
-        processor_to_cache_fifo = MemoryFifoPair()
         cache_to_coh_agent_fifo = CacheFifoPair()
         coh_agent_to_cache_fifo = CacheFifoPair()
         self._mmio_manager = None
@@ -113,7 +112,7 @@ class CxlType1Device(RunnableComponent):
         cache_num_assoc = 4
         cache_controller_config = CacheControllerConfig(
             component_name=config.device_name,
-            processor_to_cache_fifo=processor_to_cache_fifo,
+            processor_to_cache_fifo=None,
             cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
             coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
             cache_num_assoc=cache_num_assoc,
@@ -121,12 +120,13 @@ class CxlType1Device(RunnableComponent):
         )
         self._cache_controller = CacheController(cache_controller_config)
 
-        device_processor_config = DeviceLlcIoGenConfig(
-            device_name=config.device_name,
-            processor_to_cache_fifo=processor_to_cache_fifo,
-            memory_size=config.host_mem_size,
-        )
-        self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
+        # DEBUG tool
+        # device_processor_config = DeviceLlcIoGenConfig(
+        #     device_name=config.device_name,
+        #     processor_to_cache_fifo=processor_to_cache_fifo,
+        #     memory_size=config.host_mem_size,
+        # )
+        # self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
 
     async def read_mmio(self, addr: int, size: int, bar: int = 0):
         return await self._mmio_manager.read_mmio(addr, size, bar)
@@ -136,10 +136,9 @@ class CxlType1Device(RunnableComponent):
 
     def _init_device(
         self,
-        mmio_manager: MmioManager,
-        config_space_manager: ConfigSpaceManager,
+        cxl_io_callback_data: CxlIoCallbackData,
     ):
-        self._mmio_manager = mmio_manager
+        self._mmio_manager = cxl_io_callback_data.mmio_manager
         # Create PCiComponent
         pci_identity = PciComponentIdentity(
             vendor_id=EEUM_VID,
@@ -148,7 +147,7 @@ class CxlType1Device(RunnableComponent):
             sub_class_coce=MEMORY_CONTROLLER_SUBCLASS.CXL_MEMORY_DEVICE,
             programming_interface=0x10,
         )
-        pci_component = PciComponent(pci_identity, mmio_manager)
+        pci_component = PciComponent(pci_identity, self._mmio_manager)
 
         # Create CxlMemoryDeviceComponent
         logger.debug(f"Total Capacity = {self._memory_size:x}")
@@ -170,7 +169,7 @@ class CxlType1Device(RunnableComponent):
         mmio_register = CombinedMmioRegister(options=options, parent_name="mmio")
 
         # Update MmioManager with new bar entires
-        mmio_manager.set_bar_entries([BarEntry(register=mmio_register)])
+        self._mmio_manager.set_bar_entries([BarEntry(register=mmio_register)])
         cache_size_unit = 0
         if self._cache_line_size == 64 * KB:
             cache_size_unit = 0x1
@@ -212,7 +211,7 @@ class CxlType1Device(RunnableComponent):
         # ------------------------------
 
         # Update ConfigSpaceManager with config space register
-        config_space_manager.set_register(config_space_register)
+        cxl_io_callback_data.config_space_manager.set_register(config_space_register)
 
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
@@ -255,13 +254,11 @@ class CxlType1Device(RunnableComponent):
             create_task(self._cxl_io_manager.run()),
             create_task(self._cxl_cache_dcoh.run()),
             create_task(self._cache_controller.run()),
-            create_task(self._device_simple_processor.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_manager.wait_for_ready()),
             create_task(self._cxl_cache_dcoh.wait_for_ready()),
             create_task(self._cache_controller.wait_for_ready()),
-            create_task(self._device_simple_processor.wait_for_ready()),
         ]
         await gather(*wait_tasks)
         await self._change_status_to_running()
@@ -273,6 +270,5 @@ class CxlType1Device(RunnableComponent):
             create_task(self._cxl_io_manager.stop()),
             create_task(self._cxl_cache_dcoh.stop()),
             create_task(self._cache_controller.stop()),
-            create_task(self._device_simple_processor.stop()),
         ]
         await gather(*tasks)

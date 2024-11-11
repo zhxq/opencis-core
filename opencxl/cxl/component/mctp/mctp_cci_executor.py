@@ -36,7 +36,7 @@ class MctpCciExecutor(RunnableComponent):
             self._cci_executor.register_command(command.get_opcode(), command)
 
     def _packet_to_request(self, packet: CciMessagePacket) -> CciRequest:
-        return CciRequest(opcode=packet.header.command_opcode, payload=packet.payload)
+        return CciRequest(opcode=packet.header.command_opcode, payload=packet.get_payload())
 
     async def _send_response(self, response: CciResponse, message_tag: int):
         header = CciMessageHeaderPacket()
@@ -47,7 +47,7 @@ class MctpCciExecutor(RunnableComponent):
         header.background_operation = 1 if response.bo_flag else 0
         header.return_code = response.return_code
         header.vendor_specific_extended_status = response.vendor_specific_status
-        response_packet = CciMessagePacket(header, response.payload)
+        response_packet = CciMessagePacket.create(header, response.payload)
         await self._mctp_connection.ep_to_controller.put(response_packet)
 
     async def _process_incoming_requests(self):
@@ -88,7 +88,7 @@ class MctpCciExecutor(RunnableComponent):
         header.message_category = CCI_MCTP_MESSAGE_CATEGORY.REQUEST
         header.set_message_payload_length(len(request.payload))
         header.command_opcode = request.opcode
-        message_packet = CciMessagePacket(header, request.payload)
+        message_packet = CciMessagePacket.create(header, request.payload)
         opcode_str = get_opcode_string(request.opcode)
         logger.debug(self._create_message(f"Sending {opcode_str}"))
         await self._mctp_connection.ep_to_controller.put(message_packet)

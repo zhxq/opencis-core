@@ -16,6 +16,7 @@ from asyncio import (
     open_connection,
     Lock,
 )
+import asyncio
 from asyncio.exceptions import CancelledError
 from enum import Enum
 from typing import Callable
@@ -26,10 +27,6 @@ from opencxl.util.logger import logger
 
 class ShortMsgBase(Enum):
     pass
-
-
-class ShortMsgPlaceholder(ShortMsgBase):
-    NULL = 0x00
 
 
 class ShortMsgConn(RunnableComponent):
@@ -45,7 +42,7 @@ class ShortMsgConn(RunnableComponent):
         server: bool = False,
         device_id: int = 0,
         msg_width: int = 2,
-        msg_type=ShortMsgPlaceholder,
+        msg_type=ShortMsgBase,
     ):
         super().__init__(f"{device_name}:ShortMsgConn")
         self._addr = addr
@@ -65,15 +62,6 @@ class ShortMsgConn(RunnableComponent):
         self._device_id = device_id
         self._run_status = False
         self._msg_tasks: list[Task] = []
-        if msg_type == ShortMsgPlaceholder:
-            logger.warning(
-                self._create_message("You are using the ShortMsgPlaceholder for ShortMsgConn data.")
-            )
-            logger.warning(
-                self._create_message(
-                    "Please create a custom class extending ShortMsgBase class for custom messages."
-                )
-            )
         self._msg_type = msg_type
 
     def register_interrupt_handler(
@@ -207,6 +195,8 @@ class ShortMsgConn(RunnableComponent):
             if self._server:
                 server = await self._create_server()
                 self._server_task = create_task(server.serve_forever())
+                while not server.is_serving():
+                    await asyncio.sleep(0.1)
                 self._tasks.append(self._server_task)
             else:
                 pass
@@ -215,10 +205,10 @@ class ShortMsgConn(RunnableComponent):
 
             await gather(*self._tasks)
         except CancelledError:
-            logger.debug(self._create_message("ShortMsg enable listener stopped"))
+            logger.info(self._create_message("ShortMsg enable listener stopped"))
             for task in self._msg_tasks:
                 task.cancel()
-            logger.debug(self._create_message("All ShortMsg tasks cancelled"))
+            logger.info(self._create_message("All ShortMsg tasks cancelled"))
 
     async def _stop(self):
         logger.debug(self._create_message("ShortMsg Manager Stopping"))

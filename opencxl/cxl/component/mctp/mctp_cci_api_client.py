@@ -128,7 +128,7 @@ class MctpCciApiClient(RunnableComponent):
         header.message_category = CCI_MCTP_MESSAGE_CATEGORY.REQUEST
         header.command_opcode = request.opcode
         header.set_message_payload_length(len(request.payload))
-        message_packet = CciMessagePacket(header, request.payload)
+        message_packet = CciMessagePacket.create(header, request.payload)
         return message_packet
 
     async def _wait_for_background_operation(self) -> CCI_RETURN_CODE:
@@ -161,7 +161,7 @@ class MctpCciApiClient(RunnableComponent):
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = BackgroundOperationStatusCommand.parse_response_payload(
-            response_message_packet.payload
+            response_message_packet.get_payload()
         )
         # logger.debug(self._create_message(response.get_pretty_print()))
         return (return_code, response)
@@ -177,7 +177,7 @@ class MctpCciApiClient(RunnableComponent):
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = IdentifySwitchDeviceCommand.parse_response_payload(
-            response_message_packet.payload
+            response_message_packet.get_payload()
         )
         logger.debug(self._create_message(response.get_pretty_print()))
         return (return_code, response)
@@ -193,7 +193,7 @@ class MctpCciApiClient(RunnableComponent):
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = GetPhysicalPortStateCommand.parse_response_payload(
-            response_message_packet.payload
+            response_message_packet.get_payload()
         )
         # logger.debug(self._create_message(response.get_pretty_print()))
         return (return_code, response)
@@ -209,7 +209,7 @@ class MctpCciApiClient(RunnableComponent):
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = GetVirtualCxlSwitchInfoCommand.parse_response_payload(
-            response_message_packet.payload,
+            response_message_packet.get_payload(),
             request.start_vppb,
             request.vppb_list_limit,
         )
@@ -263,7 +263,7 @@ class MctpCciApiClient(RunnableComponent):
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = GetConnectedDevicesCommand.parse_response_payload(
-            response_message_packet.payload
+            response_message_packet.get_payload()
         )
         # logger.debug(self._create_message(response.get_pretty_print()))
         return (return_code, response)

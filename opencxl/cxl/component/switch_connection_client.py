@@ -34,7 +34,7 @@ class SwitchConnectionClient(RunnableComponent):
         self,
         port_index: int,
         component_type: CXL_COMPONENT_TYPE,
-        num_ld: int = 0,
+        ld_count: int = 0,
         host: str = "0.0.0.0",
         port: int = 8000,
         retry: bool = True,
@@ -46,8 +46,8 @@ class SwitchConnectionClient(RunnableComponent):
         self._port = port
         self._port_index = port_index
         self._component_type = component_type
-        if num_ld != 0:
-            self._cxl_connection = [CxlConnection() for _ in range(num_ld)]
+        if ld_count != 0:
+            self._cxl_connection = [CxlConnection() for _ in range(ld_count)]
         else:
             self._cxl_connection = CxlConnection()
         self._packet_processor = None
@@ -133,8 +133,10 @@ class SwitchConnectionClient(RunnableComponent):
             self._component_type,
             label=f"ClientPort{self._port_index}",
         )
+        tasks = [asyncio.create_task(self._packet_processor.run())]
+        await self._packet_processor.wait_for_ready()
         await self._change_status_to_running()
-        await self._packet_processor.run()
+        await asyncio.gather(*tasks)
 
     async def _stop(self):
         self._stop_signal = True

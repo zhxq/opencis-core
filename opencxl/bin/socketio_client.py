@@ -68,41 +68,30 @@ def print_result(data):
 async def connect():
     print("Connected to the server")
 
-    await send("port:get")
-
-    await send("vcs:get")
-
-    await send("device:get")
-
-    await send("vcs:unbind", {"virtualCxlSwitchId": 0, "vppbId": 0})
-    await send("vcs:unbind", {"virtualCxlSwitchId": 0, "vppbId": 1})
-    await send("vcs:unbind", {"virtualCxlSwitchId": 0, "vppbId": 2})
-    await send("vcs:unbind", {"virtualCxlSwitchId": 0, "vppbId": 3})
-
-    await send(
-        "vcs:bind",
-        {"virtualCxlSwitchId": 0, "vppbId": 0, "physicalPortId": 1},
-    )
-    await send(
-        "vcs:bind",
-        {"virtualCxlSwitchId": 0, "vppbId": 1, "physicalPortId": 2},
-    )
-    await send(
-        "vcs:bind",
-        {"virtualCxlSwitchId": 0, "vppbId": 2, "physicalPortId": 3},
-    )
-    await send(
-        "vcs:bind",
-        {"virtualCxlSwitchId": 0, "vppbId": 3, "physicalPortId": 4},
-    )
-    # await stop_client()
-
 
 # Disconnect event handler
 @sio.event
 def disconnect():
     print("Disconnected from server")
-    sys.exit()
+
+
+# Bind & unbind
+async def bind(vcs: int, vppb: int, physical_port: int, ld_id: int = 0):
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "vcs:bind",
+        {"virtualCxlSwitchId": vcs, "vppbId": vppb, "physicalPortId": physical_port, "ldId": ld_id},
+    )
+    await sio.disconnect()
+
+
+async def unbind(vcs: int, vppb: int):
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "vcs:unbind",
+        {"virtualCxlSwitchId": vcs, "vppbId": vppb},
+    )
+    await sio.disconnect()
 
 
 # Main asynchronous function to start the client
@@ -114,6 +103,7 @@ async def start_client():
 # Stop the client gracefully
 async def stop_client():
     await sio.disconnect()
+    sys.exit()
 
 
 # Run the client

@@ -6,7 +6,7 @@
 """
 
 import asyncio
-from asyncio import CancelledError
+from asyncio import CancelledError, create_task, gather
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Optional, List, Callable, Coroutine, Any, cast
@@ -77,6 +77,8 @@ class SwitchConnectionManager(RunnableComponent):
             server = await self._create_server()
             self._server_task = asyncio.create_task(server.serve_forever())
             logger.info(self._create_message("Starting TCP server task"))
+            while not server.is_serving():
+                await asyncio.sleep(0.1)
             await self._change_status_to_running()
             await self._server_task
         except Exception as e:
@@ -84,15 +86,19 @@ class SwitchConnectionManager(RunnableComponent):
         except CancelledError:
             logger.info(self._create_message("Stopped TCP server"))
 
+    async def _stop(self):
+        logger.info(self._create_message("Cancelling TCP server task"))
+        self._server_task.cancel()
+        try:
+            await self._server_task
+        except CancelledError:
+            logger.info(self._create_message("Cancelled TCP server"))
+
         for port_index, port in enumerate(self._ports):
             if port.packet_processor is not None:
                 logger.info(self._create_message(f"Stopping PacketProcessor for port {port_index}"))
                 await port.packet_processor.stop()
                 logger.info(self._create_message(f"Stopped PacketProcessor for port {port_index}"))
-
-    async def _stop(self):
-        logger.info(self._create_message("Canceling TCP server task"))
-        self._server_task.cancel()
 
     async def _create_server(self):
         async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
@@ -207,7 +213,9 @@ class SwitchConnectionManager(RunnableComponent):
             label=f"SwitchPort{port_index}",
         )
         self._ports[port_index].packet_processor = packet_processor
-        await packet_processor.run()
+        tasks = [create_task(packet_processor.run())]
+        await packet_processor.wait_for_ready()
+        await gather(*tasks)
         self._ports[port_index].packet_processor = None
 
     def get_cxl_connection(self, port: int) -> CxlConnection:

@@ -33,13 +33,10 @@ https://chat.openai.com/share/470bd62a-eaa4-4218-aa3e-4353276a16fd
 
 @dataclass
 class BindVppbRequestPayload:
-    vcs_id: int = field(default=0)
-    vppb_id: int = field(default=0)
-    physical_port_id: int = field(default=0)
-    ld_id: int = field(default=0xFFFF)
-
-    _reserved: ClassVar[bytes] = b"\x00"
-    _ld_id_mask: ClassVar[int] = 0xFFFF
+    vcs_id: int
+    vppb_id: int
+    physical_port_id: int
+    ld_id: int = 0
 
     @classmethod
     def parse(cls, data: bytes):
@@ -114,7 +111,9 @@ class BindVppbCommand(CciBackgroundCommand):
 
         await callback(50)
 
-        await vcs.bind_vppb(port_id, vppb_id)
+        # TODO: Pseudo FM for now, the FM will return proper LD ID provided by the MLD device
+        ld_id = vcs.pseudo_fm_get_ld_id(port_id, vppb_id)
+        await vcs.bind_vppb(port_id, vppb_id, ld_id)
         response = CciResponse()
         return response
 
