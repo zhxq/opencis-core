@@ -80,20 +80,26 @@ class CxlSwitch(RunnableComponent):
         start_mctp: bool = True,
     ):
         super().__init__()
+        # Passed to GetPhysicalPortStateCommand so that port:get can retrieve SLD/MLD info
+        # TODO: Remove it when FM initializes all SLD/MLD in runtime
+        self._device_configs = device_configs
         self._switch_connection_manager = SwitchConnectionManager(
             switch_config.port_configs, switch_config.host, switch_config.port
         )
         self._physical_port_manager = PhysicalPortManager(
-            self._switch_connection_manager, switch_config.port_configs, device_configs
+            self._switch_connection_manager, switch_config.port_configs, self._device_configs
         )
         self._virtual_switch_manager = VirtualSwitchManager(
-            switch_config.virtual_switch_configs, self._physical_port_manager
+            switch_config.virtual_switch_configs,
+            self._physical_port_manager,
         )
         self._mctp_connection_client = MctpConnectionClient(
             switch_config.mctp_host, switch_config.mctp_port
         )
         self._mctp_cci_executor = MctpCciExecutor(
-            self._mctp_connection_client.get_mctp_connection()
+            self._mctp_connection_client.get_mctp_connection(),
+            self._switch_connection_manager,
+            switch_config.port_configs,
         )
 
         if start_mctp:
@@ -110,7 +116,7 @@ class CxlSwitch(RunnableComponent):
             IdentifyCommand(ident_payload),
             BackgroundOperationStatusCommand(self._mctp_cci_executor),
             IdentifySwitchDeviceCommand(self._physical_port_manager, self._virtual_switch_manager),
-            GetPhysicalPortStateCommand(self._switch_connection_manager),
+            GetPhysicalPortStateCommand(self._switch_connection_manager, self._device_configs),
             GetVirtualCxlSwitchInfoCommand(self._virtual_switch_manager),
             BindVppbCommand(self._physical_port_manager, self._virtual_switch_manager),
             UnbindVppbCommand(self._virtual_switch_manager),

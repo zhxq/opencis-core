@@ -75,6 +75,30 @@ def disconnect():
     print("Disconnected from server")
 
 
+async def get_port():
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "port:get",
+    )
+    await sio.disconnect()
+
+
+async def get_vcs():
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "vcs:get",
+    )
+    await sio.disconnect()
+
+
+async def get_device():
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "device:get",
+    )
+    await sio.disconnect()
+
+
 # Bind & unbind
 async def bind(vcs: int, vppb: int, physical_port: int, ld_id: int = 0):
     await sio.connect("http://0.0.0.0:8200")
@@ -90,6 +114,44 @@ async def unbind(vcs: int, vppb: int):
     await send(
         "vcs:unbind",
         {"virtualCxlSwitchId": vcs, "vppbId": vppb},
+    )
+    await sio.disconnect()
+
+
+async def get_ld_info(port_index: int):
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "mld:get",
+        {"port_index": port_index},
+    )
+    await sio.disconnect()
+
+
+async def get_ld_allocation(port_index: int, start_ld_id: int, ld_allocation_list_limit: int):
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "mld:getAllocation",
+        {
+            "port_index": port_index,
+            "start_ld_id": start_ld_id,
+            "ld_allocation_list_limit": ld_allocation_list_limit,
+        },
+    )
+    await sio.disconnect()
+
+
+async def set_ld_allocation(
+    port_index: int, number_of_lds: int, start_ld_id: int, ld_allocation_list: int
+):
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "mld:setAllocation",
+        {
+            "port_index": port_index,
+            "number_of_lds": number_of_lds,
+            "start_ld_id": start_ld_id,
+            "ld_allocation_list": ld_allocation_list,
+        },
     )
     await sio.disconnect()
 
