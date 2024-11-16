@@ -159,9 +159,8 @@ class DownstreamPortDevice(CxlPortDevice):
         print(f"len: {len(self._cxl_io_manager)}")
         return self._cxl_io_manager[ld_id].get_cfg_reg_vals()
 
-    def set_vppb_index(self, vppb_index: int, ld_id: int):
+    def set_vppb_index(self, vppb_index: int):
         self._vppb_index = vppb_index
-        self._pci_bridge_component[ld_id].set_port_number(self._vppb_index)
 
     def get_device_type(self) -> CXL_COMPONENT_TYPE:
         return CXL_COMPONENT_TYPE.DSP
@@ -172,9 +171,9 @@ class DownstreamPortDevice(CxlPortDevice):
     def get_secondary_bus_number(self, ld_id: int):
         return self._pci_registers[ld_id].pci.secondary_bus_number
 
-    # Caller should always await this function
     async def bind_to_vppb(self, ld_id: int):
-        logger.info(self._create_message(f"Binding ld_id {ld_id} to vPPB{self._vppb_index}"))
+        # TODO: Check for invalid ld_id
+        logger.info(self._create_message(f"Binding LD-ID {ld_id} to vPPB{self._vppb_index}"))
         self._vppb_upstream_connection[ld_id] = CxlConnection()
         self._vppb_downstream_connection[ld_id] = CxlConnection()
         self._cxl_io_manager[ld_id] = CxlIoManager(
@@ -197,6 +196,8 @@ class DownstreamPortDevice(CxlPortDevice):
             downstream_fifo=self._vppb_downstream_connection[ld_id].cxl_cache_fifo,
             label=self._get_label(),
         )
+
+        self._pci_bridge_component[ld_id].set_port_number(self._vppb_index)
 
         wait_tasks = []
 
