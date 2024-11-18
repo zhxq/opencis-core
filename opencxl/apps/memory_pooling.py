@@ -163,7 +163,9 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
 
     def bind():
         async def _bind(_: int, data: HostFMMsg):
-            logger.info(f"[SYS-SW] Received {data.readable}, val {data.real_val} from FM")
+            logger.info(
+                f"[SYS-SW] Received {data.readable}, val {data.real_val} from FM, vPPB: {data.vppb}"
+            )
             if data.root_port != root_port:
                 logger.info(
                     f"[SYS-SW] But this request (root_port {data.root_port}) "
@@ -178,8 +180,9 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
             await cxl_mem_driver.init()
             memory_base_tracker.mmio_base = mmio_base
 
-            now_mem_devices = cxl_mem_driver.get_devices()
-            for device in now_mem_devices:
+            current_mem_devices = cxl_mem_driver.get_devices()
+            # TODO: Add sanity check and make sure this loop is only run once
+            for device in current_mem_devices:
                 if device.pci_device_info.bdf not in existing_mem_bdfs:
                     port = cxl_mem_driver.get_port_number(device)
                     mem_tracker.add_mem_range(
@@ -218,7 +221,7 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
                     confirmation = HostFMMsg.create(data.vppb, root_port, True, True)
                     await host_fm_conn_client.send_irq_request(confirmation)
                     return
-            logger.info(f"[SYS-SW] FM unable to bind device @ vppb: {data.vppb}")
+            logger.error(f"[SYS-SW] FM unable to bind device @ vppb: {data.vppb}")
 
         return _bind
 

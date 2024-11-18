@@ -514,17 +514,17 @@ class PciBusDriver(LabeledComponent):
             pci_device_info.serial_number = sn_str
 
     async def scan_bus_unbind(self):
-        still_existing_devices = []
+        remaining_devices = []
         for device in self._devices:
             bdf = device.bdf
             vid_did = await self._read_vid_did(bdf)
             if vid_did is not None:
-                still_existing_devices.append(device)
+                remaining_devices.append(device)
 
-        self._devices = still_existing_devices
+        self._devices = remaining_devices
 
     async def scan_bus_bind(self, memory_start: int):
-        _, mmio_base = await self._scan_bus(self._root_complex.get_root_bus(), memory_start)
+        (_, mmio_base) = await self._scan_bus(self._root_complex.get_root_bus(), memory_start)
         return mmio_base
 
     async def _scan_bus(
@@ -557,11 +557,11 @@ class PciBusDriver(LabeledComponent):
             is_bridge = (class_code >> 8) == BRIDGE_CLASS
             if bdf not in existing_bdfs:
                 pci_device_info = PciDeviceInfo(
-                    bdf=bdf,
-                    vendor_id=vendor_id,
-                    device_id=device_id,
-                    class_code=class_code,
-                    is_bridge=is_bridge,
+                    bdf,
+                    vendor_id,
+                    device_id,
+                    class_code,
+                    is_bridge,
                 )
                 if parent_device_info:
                     parent_device_info.children.append(pci_device_info)
