@@ -19,7 +19,6 @@ from opencxl.pci.component.pci import (
 )
 from opencxl.pci.config_space.pci import REG_ADDR, BAR_OFFSETS, BAR_REGISTER_SIZE
 from opencxl.util.pci import (
-    extract_bus_from_bdf,
     extract_device_from_bdf,
     extract_function_from_bdf,
     bdf_to_string,
