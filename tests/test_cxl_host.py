@@ -7,6 +7,7 @@
 
 # pylint: disable=unused-import
 import asyncio
+import re
 from typing import Dict, Tuple
 import json
 import jsonrpcserver
@@ -19,18 +20,21 @@ import pytest
 from opencis.cxl.transport.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
 )
-from opencis.apps.cxl_simple_host import CxlHostManager, CxlSimpleHost, CxlHostUtilClient
+from opencis.apps.cxl_simple_host import CxlSimpleHost
+from opencis.cxl.component.host_manager import HostManager, UtilConnClient
 from opencis.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencis.cxl.component.cxl_component import PortConfig, PORT_TYPE
 from opencis.cxl.component.physical_port_manager import PhysicalPortManager
-from opencis.cxl.component.virtual_switch_manager import (
-    VirtualSwitchManager,
-    VirtualSwitchConfig,
-)
+from opencis.cxl.component.virtual_switch_manager import VirtualSwitchManager, VirtualSwitchConfig
+from opencis.cxl.environment import parse_cxl_environment
+from opencis.apps.cxl_switch import CxlSwitch
 from opencis.apps.single_logical_device import SingleLogicalDevice
+from opencis.apps.packet_trace_runner import PacketTraceRunner
 from opencis.util.number_const import MB
+from opencis.util.number import get_rand_range_generator
 
 BASE_TEST_PORT = 9300
+generator = get_rand_range_generator(BASE_TEST_PORT, 100)
 
 
 class SimpleJsonClient:
@@ -64,9 +68,8 @@ class SimpleJsonClient:
 class DummyHost:
     def __init__(self):
         self._util_methods = {
-            "HOST_CXL_MEM_READ": self._dummy_mem_read,
-            "HOST_CXL_MEM_WRITE": self._dummy_mem_write,
-            "HOST_REINIT": self._dummy_reinit,
+            "HOST:CXL_HOST_READ": self._dummy_mem_read,
+            "HOST:CXL_HOST_WRITE": self._dummy_mem_write,
         }
         self._ws = None
         self._event = asyncio.Event()
@@ -89,9 +92,6 @@ class DummyHost:
                 f"Invalid Params: 0x{addr:x} is not a valid address",
             )
         return jsonrpcserver.Success({"result": data})
-
-    async def _dummy_reinit(self, hpa_base: int) -> jsonrpcserver.Result:
-        return jsonrpcserver.Success({"result": hpa_base})
 
     async def conn_open(self, port: int, host: str = "0.0.0.0"):
         util_server_uri = f"ws://{host}:{port}"
@@ -145,19 +145,17 @@ async def send_util_and_check_host(host_client, util_client, cmd):
 
 @pytest.mark.asyncio
 async def test_cxl_host_manager_send_util_and_recv_host():
-    host_port = BASE_TEST_PORT + pytest.PORT.TEST_1
-    util_port = BASE_TEST_PORT + pytest.PORT.TEST_1 + 50
+    host_port = next(generator)
+    util_port = next(generator)
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     host_client, util_client = await init_clients(host_port, util_port)
 
-    cmd = request_json("UTIL_CXL_MEM_READ", params={"port": 0, "addr": 0x40})
+    cmd = request_json("UTIL:CXL_HOST_READ", params={"port": 0, "addr": 0x40})
     await send_util_and_check_host(host_client, util_client, cmd)
-    cmd = request_json("UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": 0x40, "data": 0xA5A5})
-    await send_util_and_check_host(host_client, util_client, cmd)
-    cmd = request_json("UTIL_REINIT", params={"port": 0, "hpa_base": 0x40})
+    cmd = request_json("UTIL:CXL_HOST_WRITE", params={"port": 0, "addr": 0x40, "data": 0xA5A5})
     await send_util_and_check_host(host_client, util_client, cmd)
 
     await util_client.close()
@@ -175,10 +173,10 @@ async def send_and_check_res(util_client: SimpleJsonClient, cmd: str, res_expect
 
 @pytest.mark.asyncio
 async def test_cxl_host_manager_handle_res():
-    host_port = BASE_TEST_PORT + pytest.PORT.TEST_2
-    util_port = BASE_TEST_PORT + pytest.PORT.TEST_2 + 50
+    host_port = next(generator)
+    util_port = next(generator)
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     host = DummyHost()
@@ -188,9 +186,9 @@ async def test_cxl_host_manager_handle_res():
 
     addr = 0x40
     data = 0xA5A5
-    cmd = request_json("UTIL_CXL_MEM_READ", params={"port": 0, "addr": addr})
+    cmd = request_json("UTIL:CXL_HOST_READ", params={"port": 0, "addr": addr})
     await send_and_check_res(util_client, cmd, addr)
-    cmd = request_json("UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": addr, "data": data})
+    cmd = request_json("UTIL:CXL_HOST_WRITE", params={"port": 0, "addr": addr, "data": data})
     await send_and_check_res(util_client, cmd, data)
     cmd = request_json(
         "UTIL_CXL_MEM_BIRSP",
@@ -214,10 +212,10 @@ async def send_and_check_err(util_client: SimpleJsonClient, cmd: str, err_expect
 
 @pytest.mark.asyncio
 async def test_cxl_host_manager_handle_err():
-    host_port = BASE_TEST_PORT + pytest.PORT.TEST_3
-    util_port = BASE_TEST_PORT + pytest.PORT.TEST_3 + 50
+    host_port = next(generator)
+    util_port = next(generator)
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     dummy_host = DummyHost()
@@ -230,17 +228,19 @@ async def test_cxl_host_manager_handle_err():
 
     # Invalid USP port
     err_expected = "Invalid Params"
-    cmd = request_json("UTIL_CXL_MEM_READ", params={"port": 10, "addr": valid_addr})
+    cmd = request_json("UTIL:CXL_HOST_READ", params={"port": 10, "addr": valid_addr})
     await send_and_check_err(util_client, cmd, err_expected)
 
     # Invalid read address
     err_expected = "Invalid Params"
-    cmd = request_json("UTIL_CXL_MEM_READ", params={"port": 0, "addr": invalid_addr})
+    cmd = request_json("UTIL:CXL_HOST_READ", params={"port": 0, "addr": invalid_addr})
     await send_and_check_err(util_client, cmd, err_expected)
 
     # Invalid write address
     err_expected = "Invalid Params"
-    cmd = request_json("UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": invalid_addr, "data": data})
+    cmd = request_json(
+        "UTIL:CXL_HOST_WRITE", params={"port": 0, "addr": invalid_addr, "data": data}
+    )
     await send_and_check_err(util_client, cmd, err_expected)
 
     await dummy_host.conn_close()
@@ -250,23 +250,22 @@ async def test_cxl_host_manager_handle_err():
 
 @pytest.mark.asyncio
 async def test_cxl_host_util_client():
-    host_port = BASE_TEST_PORT + pytest.PORT.TEST_4
-    util_port = BASE_TEST_PORT + pytest.PORT.TEST_4 + 50
+    host_port = next(generator)
+    util_port = next(generator)
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     dummy_host = DummyHost()
     asyncio.create_task(dummy_host.conn_open(port=host_port))
     await dummy_host.wait_connected()
-    util_client = CxlHostUtilClient(port=util_port)
+    util_client = UtilConnClient(port=util_port)
 
     data = 0xA5A5
     valid_addr = 0x40
     invalid_addr = 0x41
     assert valid_addr == await util_client.cxl_mem_read(0, valid_addr)
     assert data == await util_client.cxl_mem_write(0, valid_addr, data)
-    assert valid_addr == await util_client.reinit(0, valid_addr)
     try:
         await util_client.cxl_mem_read(0, invalid_addr)
     except Exception as e:
@@ -279,9 +278,9 @@ async def test_cxl_host_util_client():
 @pytest.mark.asyncio
 async def test_cxl_host_type3_ete():
     # pylint: disable=protected-access
-    host_port = BASE_TEST_PORT + pytest.PORT.TEST_5
-    util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 50
-    switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 60
+    host_port = next(generator)
+    util_port = next(generator)
+    switch_port = next(generator)
 
     port_configs = [
         PortConfig(PORT_TYPE.USP),
@@ -298,7 +297,7 @@ async def test_cxl_host_type3_ete():
             vppb_counts=1,
             initial_bounds=[1],
             irq_host="127.0.0.1",
-            irq_port=BASE_TEST_PORT + pytest.PORT.TEST_1 + 60,
+            irq_port=next(generator),
         )
     ]
     allocated_ld = {}
@@ -316,12 +315,8 @@ async def test_cxl_host_type3_ete():
         port=switch_port,
     )
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
-    test_mode_host = CxlSimpleHost(
-        port_index=2, switch_port=switch_port, host_port=host_port, test_mode=True
-    )
-
     start_tasks = [
         asyncio.create_task(host.run()),
         asyncio.create_task(host_manager.run()),
@@ -349,9 +344,6 @@ async def test_cxl_host_type3_ete():
         asyncio.create_task(host._cxl_mem_read(invalid_addr)),
         asyncio.create_task(host._cxl_mem_write(valid_addr, data)),
         asyncio.create_task(host._cxl_mem_write(invalid_addr, data)),
-        asyncio.create_task(test_mode_host._reinit()),
-        asyncio.create_task(test_mode_host._reinit(valid_addr)),
-        asyncio.create_task(test_mode_host._reinit(invalid_addr)),
     ]
     await asyncio.gather(*test_tasks)
 
@@ -365,6 +357,62 @@ async def test_cxl_host_type3_ete():
     ]
     await asyncio.gather(*stop_tasks)
     await asyncio.gather(*start_tasks)
+
+
+def get_trace_ports(file_name):
+    name = re.split("[-|.]", file_name)
+    trace_switch_port = int(name[1][1:])
+    trace_device_port = int(name[2][1:])
+    return trace_switch_port, trace_device_port
+
+
+@pytest.mark.asyncio
+async def test_cxl_qemu_host_type3():
+    # pylint: disable=protected-access
+    switch_port = next(generator)
+    start_tasks = []
+    env = parse_cxl_environment("configs/1vcs_4sld.yaml")
+    env.switch_config.port = switch_port
+    for vsconfig in env.switch_config.virtual_switch_configs:
+        vsconfig.irq_port = next(generator)
+    switch = CxlSwitch(env.switch_config, env.logical_device_configs, start_mctp=False)
+    start_tasks.append(await switch.run_wait_ready())
+
+    slds = []
+    for i, config in enumerate(env.single_logical_device_configs):
+        sld = SingleLogicalDevice(
+            port_index=config.port_index,
+            memory_size=config.memory_size,
+            memory_file=f"mem{switch_port}-{i}.bin",
+            serial_number=config.serial_number,
+            host=env.switch_config.host,
+            port=env.switch_config.port,
+        )
+        start_tasks.append(await sld.run_wait_ready())
+        slds.append(sld)
+
+    pcap_file = "traces/qemu-s8000-h40026.pcap"
+    trace_switch_port, trace_device_port = get_trace_ports(pcap_file)
+    trace_runner = PacketTraceRunner(
+        pcap_file,
+        "0.0.0.0",
+        switch_port,
+        trace_switch_port,
+        trace_device_port,
+    )
+
+    error = None
+    try:
+        await trace_runner.run()
+    except ValueError as e:
+        error = e
+    finally:
+        stop_tasks = [asyncio.create_task(switch.stop())]
+        stop_tasks.extend([asyncio.create_task(sld.stop()) for sld in slds])
+        await asyncio.gather(*stop_tasks)
+        await asyncio.gather(*start_tasks)
+        if error is not None:
+            raise error
 
 
 # TODO: This is a test for BI packets for now.
@@ -421,7 +469,7 @@ async def test_cxl_host_type3_ete():
 #             port=switch_port,
 #         )
 
-#         host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+#         host_manager = HostManager(host_port=host_port, util_port=util_port)
 #         host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
 
 #         start_tasks = [
@@ -500,7 +548,7 @@ async def test_cxl_host_type3_ete():
 #         port=switch_port,
 #     )
 
-#     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+#     host_manager = HostManager(host_port=host_port, util_port=util_port)
 #     host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
 #     test_mode_host = CxlSimpleHost(
 #         port_index=2, switch_port=switch_port, host_port=host_port, test_mode=True
