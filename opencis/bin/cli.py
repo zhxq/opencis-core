@@ -6,13 +6,12 @@
 """
 
 import os
-import sys
 import multiprocessing
 import logging
 from importlib import import_module
+import time
+import pyshark
 import click
-from pylibpcap.pcap import Sniff, wpcap
-from pylibpcap.exception import LibpcapError
 
 from opencis.util.logger import logger
 from opencis.bin import fabric_manager
@@ -22,6 +21,7 @@ from opencis.bin import single_logical_device as sld
 from opencis.bin import multi_logical_device as mld
 from opencis.bin import cxl_host
 from opencis.bin import mem
+from opencis.bin import packet_runner
 
 
 @click.group()
@@ -119,6 +119,7 @@ def start(
         pcap_proc = multiprocessing.Process(target=start_capture, args=(ctx, pcap_file))
         processes.append(pcap_proc)
         pcap_proc.start()
+        time.sleep(2)
 
     if "fm" in comp:
         p_fm = multiprocessing.Process(target=start_fabric_manager, args=(ctx,))
@@ -165,12 +166,11 @@ def start(
         p_mgroup.start()
 
     if "host" in comp or "host-group" in comp:
-        # TODO: Re-enable HostManager
-        # hm_mode = not no_hm
-        # if hm_mode:
-        #     p_hm = multiprocessing.Process(target=start_host_manager, args=(ctx,))
-        #     processes.append(p_hm)
-        #     p_hm.start()
+        hm_mode = True
+        if hm_mode:
+            p_hm = multiprocessing.Process(target=start_host_manager, args=(ctx,))
+            processes.append(p_hm)
+            p_hm.start()
         if "host" in comp:
             p_host = multiprocessing.Process(target=start_host, args=(ctx,))
             processes.append(p_host)
@@ -184,39 +184,18 @@ def start(
 # helper functions
 def start_capture(ctx, pcap_file):
     def capture(pcap_file):
-
         logger.info(f"Capturing in pid: {os.getpid()}")
         if os.path.exists(pcap_file):
             os.remove(pcap_file)
 
-        filter_str = (
-            "((tcp port 8000) or (tcp port 8100) or (tcp port 8200) "
-            "or (tcp port 8300) or (tcp port 8400)) "
-            "and (((ip[2:2] - ((ip[0] & 0xf) << 2)) - ((tcp[12] & 0xf0) >> 2)) != 0)"
-        )
-        try:
-            sniffobj = Sniff(iface="lo", count=-1, promisc=1, filters=filter_str)
-            for _, _, buf in sniffobj.capture():
-                wpcap(buf, pcap_file)
-                logger.hexdump("TRACE", buf)
-        except KeyboardInterrupt:
-            pass
-        except LibpcapError as e:
-            logger.error(f"Packet capture error: {e}")
-            sys.exit()
-
-        if sniffobj is not None:
-            stats = sniffobj.stats()
-            logger.debug(stats.capture_cnt, " packets captured")
-            logger.debug(stats.ps_recv, " packets received by filter")
-            logger.debug(stats.ps_drop, "  packets dropped by kernel")
-            logger.debug(stats.ps_ifdrop, "  packets dropped by iface")
+        capture = pyshark.LiveCapture(interface="lo", bpf_filter="tcp", output_file=pcap_file)
+        capture.sniff(packet_count=0)
 
     ctx.invoke(capture, pcap_file=pcap_file)
 
 
-def start_host_manager():
-    pass
+def start_host_manager(ctx):
+    ctx.invoke(cxl_host.start_host_manager)
 
 
 def start_fabric_manager(ctx):
@@ -260,6 +239,7 @@ cli.add_command(cxl_host.host_group)
 cli.add_command(fabric_manager.fabric_manager_group)
 cli.add_command(get_info.get_info_group)
 cli.add_command(mem.mem_group)
+cli.add_command(packet_runner.ptr_group)
 
 if __name__ == "__main__":
     cli()
